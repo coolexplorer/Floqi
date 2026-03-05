@@ -1,0 +1,23 @@
+version: "3.8"
+
+# 로컬 개발용 Redis (Upstash 호환)
+# Upstash는 Redis 7 호환이므로 redis:7-alpine 사용
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: floqi-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
