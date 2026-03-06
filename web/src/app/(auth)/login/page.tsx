@@ -34,7 +34,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/automations')
+    router.push('/dashboard')
   }
 
   async function handleGoogleLogin() {
@@ -95,7 +95,7 @@ export default function LoginPage() {
                 id="login-error"
                 variant="error"
                 message={error}
-                onClose={() => setError('')}
+                onClose={(_id) => setError('')}
               />
             )}
 

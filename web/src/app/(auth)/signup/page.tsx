@@ -43,7 +43,7 @@ export default function SignupPage() {
       return
     }
 
-    router.push('/automations')
+    router.push('/dashboard')
   }
 
   return (
@@ -88,7 +88,7 @@ export default function SignupPage() {
                 id="signup-error"
                 variant="error"
                 message={error}
-                onClose={() => setError('')}
+                onClose={(_id) => setError('')}
               />
             )}
 

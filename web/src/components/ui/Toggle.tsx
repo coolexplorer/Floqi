@@ -15,11 +15,6 @@ const trackStyles = {
   md: 'h-6 w-11',
 }
 
-const thumbStyles = {
-  sm: 'h-3.5 w-3.5',
-  md: 'h-4.5 w-4.5',
-}
-
 const thumbTranslate = {
   sm: 'translate-x-4',
   md: 'translate-x-5',
