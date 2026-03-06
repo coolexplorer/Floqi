@@ -108,8 +108,8 @@ describe("ConnectionsPage", () => {
     render(<ConnectionsPage />);
 
     // Act
-    const connectButton = await screen.findByRole("button", {
-      name: /connect.*google|google.*connect|연결/i,
+    const connectButton = await screen.findByRole("switch", {
+      name: /google.*연결/i,
     });
     await userEvent.click(connectButton);
 
@@ -159,9 +159,9 @@ describe("ConnectionsPage", () => {
     });
     expect(screen.getByText(new RegExp(dateText.replace(/\./g, "\\.")))).toBeInTheDocument();
 
-    // Assert — disconnect button is visible
+    // Assert — disconnect toggle is visible
     expect(
-      screen.getByRole("button", { name: /연결 해제|disconnect/i })
+      screen.getByRole("switch", { name: /google.*연결 해제/i })
     ).toBeInTheDocument();
   });
 
@@ -172,11 +172,11 @@ describe("ConnectionsPage", () => {
     render(<ConnectionsPage />);
 
     // Wait for connected card to render
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
 
     // Act — click disconnect
     await userEvent.click(
-      screen.getByRole("button", { name: /연결 해제|disconnect/i })
+      screen.getByRole("switch", { name: /google.*연결 해제/i })
     );
 
     // Assert — confirmation modal appears
@@ -211,11 +211,11 @@ describe("ConnectionsPage", () => {
 
     render(<ConnectionsPage />);
 
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
 
     // Act — click disconnect then cancel
     await userEvent.click(
-      screen.getByRole("button", { name: /연결 해제|disconnect/i })
+      screen.getByRole("switch", { name: /google.*연결 해제/i })
     );
 
     await waitFor(() => {
@@ -254,9 +254,9 @@ describe("ConnectionsPage", () => {
 
     render(<ConnectionsPage />);
 
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
 
-    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+    await userEvent.click(screen.getByRole("switch", { name: /google.*연결 해제/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
@@ -275,8 +275,8 @@ describe("ConnectionsPage", () => {
 
     render(<ConnectionsPage />);
 
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
-    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
+    await userEvent.click(screen.getByRole("switch", { name: /google.*연결 해제/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
@@ -294,8 +294,8 @@ describe("ConnectionsPage", () => {
 
     render(<ConnectionsPage />);
 
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
-    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
+    await userEvent.click(screen.getByRole("switch", { name: /google.*연결 해제/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
@@ -323,10 +323,10 @@ describe("ConnectionsPage", () => {
 
     render(<ConnectionsPage />);
 
-    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await screen.findByRole("switch", { name: /google.*연결 해제/i });
 
     await userEvent.click(
-      screen.getByRole("button", { name: /연결 해제|disconnect/i })
+      screen.getByRole("switch", { name: /google.*연결 해제/i })
     );
 
     await waitFor(() => {

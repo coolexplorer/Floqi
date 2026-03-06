@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/cn'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
+import { Toggle } from '@/components/ui/Toggle'
 
 const GoogleLogo = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" aria-hidden="true">
@@ -29,10 +29,10 @@ export interface ServiceCardProps {
 }
 
 const SCOPE_LABELS: Record<string, string> = {
-  'https://www.googleapis.com/auth/gmail.readonly': 'Read Gmail messages',
-  'https://www.googleapis.com/auth/gmail.send': 'Send Gmail messages',
-  'https://www.googleapis.com/auth/calendar.readonly': 'View Calendar events',
-  'https://www.googleapis.com/auth/calendar': 'Manage Calendar events',
+  'https://www.googleapis.com/auth/gmail.readonly': 'Gmail 읽기',
+  'https://www.googleapis.com/auth/gmail.send': 'Gmail 전송',
+  'https://www.googleapis.com/auth/calendar.readonly': 'Calendar 읽기',
+  'https://www.googleapis.com/auth/calendar': 'Calendar 관리',
 }
 
 function formatScope(scope: string): string {
@@ -80,23 +80,17 @@ export function ServiceCard({ service, onConnect, onDisconnect, className }: Ser
         </div>
 
         <div className="shrink-0">
-          {connected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDisconnect}
-            >
-              연결 해제
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onConnect}
-            >
-              {name} 연결
-            </Button>
-          )}
+          <Toggle
+            checked={connected}
+            onChange={(newChecked) => {
+              if (newChecked) {
+                onConnect?.()
+              } else {
+                onDisconnect?.()
+              }
+            }}
+            label={connected ? `${name} 연결 해제` : `${name} 연결`}
+          />
         </div>
       </div>
     </Card>
