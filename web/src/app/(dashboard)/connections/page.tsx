@@ -28,6 +28,8 @@ export default function ConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [affectedCount, setAffectedCount] = useState(0);
+  const [affectedAutomationIds, setAffectedAutomationIds] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchConnections() {
@@ -62,9 +64,28 @@ export default function ConnectionsPage() {
     router.push('/api/auth/connect/google');
   };
 
+  const handleDisconnectClick = async () => {
+    const supabase = createClient();
+    const { data: automations } = await supabase
+      .from('automations')
+      .select('id, name, template_type')
+      .eq('status', 'active')
+      .in('template_type', ['morning_briefing', 'email_triage']);
+    const ids = (automations ?? []).map((a: { id: string }) => a.id);
+    setAffectedAutomationIds(ids);
+    setAffectedCount(ids.length);
+    setShowDisconnectModal(true);
+  };
+
   const handleDisconnectConfirm = async () => {
     if (!googleConnection) return;
     const supabase = createClient();
+    if (affectedAutomationIds.length > 0) {
+      await supabase
+        .from('automations')
+        .update({ status: 'paused' })
+        .in('id', affectedAutomationIds);
+    }
     const { error: deleteError } = await supabase
       .from('connected_services')
       .delete()
@@ -108,7 +129,7 @@ export default function ConnectionsPage() {
           <ServiceCard
             service={googleService}
             onConnect={handleConnect}
-            onDisconnect={() => setShowDisconnectModal(true)}
+            onDisconnect={handleDisconnectClick}
           />
           {[
             { name: 'Notion', initial: 'N', bg: 'bg-slate-900', description: 'Save articles and notes automatically' },
@@ -140,7 +161,11 @@ export default function ConnectionsPage() {
         isOpen={showDisconnectModal}
         onClose={() => setShowDisconnectModal(false)}
       >
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">서비스 연결 해제</h3>
         <p>Google 서비스 연결을 해제하시겠습니까?</p>
+        {affectedCount > 0 && (
+          <p className="mt-2 text-amber-600">{affectedCount}개 자동화가 일시정지됩니다</p>
+        )}
         <div className="flex gap-2 mt-4 justify-end">
           <Button
             variant="outline"

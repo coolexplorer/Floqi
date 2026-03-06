@@ -22,6 +22,7 @@ const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockInsert = vi.fn();
 const mockGetUser = vi.fn();
+const mockAutomationsUpdate = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -43,6 +44,41 @@ function buildChain(result: unknown) {
     then: (resolve: (v: unknown) => void) => Promise.resolve(result).then(resolve),
   };
   return chain;
+}
+
+// Sets up mockFrom to route by table name for tests involving disconnect click
+function setupDisconnectMock({
+  connectedService = { id: "conn-1", service_name: "google", connected_at: "2026-03-01T10:00:00Z", scopes: ["gmail.readonly"] },
+  deleteError = null as null | { message: string },
+  activeAutomations = [] as { id: string; name: string; template_type: string }[],
+} = {}) {
+  mockAutomationsUpdate.mockReturnValue({
+    in: vi.fn().mockResolvedValue({ error: null }),
+  });
+  mockFrom.mockImplementation((table: string) => {
+    if (table === "automations") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            in: vi.fn().mockResolvedValue({ data: activeAutomations, error: null }),
+          }),
+        }),
+        update: mockAutomationsUpdate,
+      };
+    }
+    // connected_services
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [connectedService],
+          error: null,
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: deleteError }),
+      }),
+    };
+  });
 }
 
 describe("ConnectionsPage", () => {
@@ -130,25 +166,8 @@ describe("ConnectionsPage", () => {
   });
 
   it("TC-2005: disconnect button → confirmation modal → confirm → DELETE mutation → card shows disconnected", async () => {
-    // Arrange — Google is connected
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({
-          data: [
-            {
-              id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
-              scopes: ["gmail.readonly"],
-            },
-          ],
-          error: null,
-        }),
-      }),
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    });
+    // Arrange — Google is connected, no active automations
+    setupDisconnectMock();
 
     render(<ConnectionsPage />);
 
@@ -168,7 +187,7 @@ describe("ConnectionsPage", () => {
     });
 
     expect(
-      screen.getByText(/연결 해제|disconnect|정말|확인/i)
+      screen.getByText(/Google 서비스 연결을 해제하시겠습니까/i)
     ).toBeInTheDocument();
 
     // Act — confirm disconnect in modal
@@ -187,22 +206,8 @@ describe("ConnectionsPage", () => {
   });
 
   it("TC-2005 (cancel): clicking cancel in modal does NOT disconnect", async () => {
-    // Arrange — Google is connected
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({
-          data: [
-            {
-              id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
-              scopes: [],
-            },
-          ],
-          error: null,
-        }),
-      }),
-    });
+    // Arrange — Google is connected, no active automations
+    setupDisconnectMock({ connectedService: { id: "conn-1", service_name: "google", connected_at: "2026-03-01T10:00:00Z", scopes: [] } });
 
     render(<ConnectionsPage />);
 
@@ -244,25 +249,77 @@ describe("ConnectionsPage", () => {
     });
   });
 
-  it("TC-2005 variant: disconnect DELETE failure → error shown", async () => {
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({
-          data: [
-            {
-              id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
-              scopes: ["gmail.readonly"],
-            },
-          ],
-          error: null,
-        }),
-      }),
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: { message: "Delete failed" } }),
-      }),
+  it("TC-2011: disconnect button → confirmation modal appears", async () => {
+    setupDisconnectMock();
+
+    render(<ConnectionsPage />);
+
+    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
     });
+
+    expect(screen.getByText(/Google 서비스 연결을 해제하시겠습니까/i)).toBeInTheDocument();
+  });
+
+  it("TC-2012: modal shows affected automation count when active automations exist", async () => {
+    setupDisconnectMock({
+      activeAutomations: [
+        { id: "auto-1", name: "Morning Briefing", template_type: "morning_briefing" },
+        { id: "auto-2", name: "Email Triage", template_type: "email_triage" },
+      ],
+    });
+
+    render(<ConnectionsPage />);
+
+    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/2개 자동화가 일시정지됩니다/i)).toBeInTheDocument();
+  });
+
+  it("TC-2013: confirm disconnect → automations paused + service deleted", async () => {
+    setupDisconnectMock({
+      activeAutomations: [
+        { id: "auto-1", name: "Morning Briefing", template_type: "morning_briefing" },
+      ],
+    });
+
+    render(<ConnectionsPage />);
+
+    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+    await userEvent.click(screen.getByRole("button", { name: /연결 해제|disconnect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
+    });
+
+    // Confirm disconnect
+    const confirmButton = screen.getByRole("button", { name: /확인|confirm|연결 해제|disconnect/i });
+    await userEvent.click(confirmButton);
+
+    // Automations should be paused
+    await waitFor(() => {
+      expect(mockAutomationsUpdate).toHaveBeenCalledWith({ status: "paused" });
+    });
+
+    // Card should show disconnected
+    await waitFor(() => {
+      expect(screen.getByText(/미연결|not connected/i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("TC-2005 variant: disconnect DELETE failure → error shown", async () => {
+    setupDisconnectMock({ deleteError: { message: "Delete failed" } });
 
     render(<ConnectionsPage />);
 
