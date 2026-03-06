@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/cn'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Toggle } from '@/components/ui/Toggle'
+import { Button } from '@/components/ui/Button'
 
 const GoogleLogo = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" aria-hidden="true">
@@ -80,17 +80,23 @@ export function ServiceCard({ service, onConnect, onDisconnect, className }: Ser
         </div>
 
         <div className="shrink-0">
-          <Toggle
-            checked={connected}
-            onChange={(checked) => {
-              if (!checked) {
-                onDisconnect?.()
-              } else {
-                onConnect?.()
-              }
-            }}
-            label={connected ? `${name} 연결 해제` : `${name} 연결`}
-          />
+          {connected ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDisconnect}
+            >
+              연결 해제
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onConnect}
+            >
+              {name} 연결
+            </Button>
+          )}
         </div>
       </div>
     </Card>

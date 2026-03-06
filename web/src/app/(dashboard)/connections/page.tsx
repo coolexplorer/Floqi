@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ServiceCard } from '@/components/cards/ServiceCard';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -22,8 +23,10 @@ const GOOGLE_SCOPES = [
 ];
 
 export default function ConnectionsPage() {
+  const router = useRouter();
   const [googleConnection, setGoogleConnection] = useState<ConnectedService | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
   useEffect(() => {
@@ -36,10 +39,15 @@ export default function ConnectionsPage() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('connected_services')
         .select('*')
         .eq('user_id', user.id);
+      if (fetchError) {
+        setError('Failed to load connections');
+        setLoading(false);
+        return;
+      }
       const google =
         (data as ConnectedService[] | null)?.find(
           (s) => s.service_name === 'google'
@@ -51,31 +59,27 @@ export default function ConnectionsPage() {
   }, []);
 
   const handleConnect = () => {
-    const state = crypto.randomUUID();
-    document.cookie = `oauth_state=${state}; path=/; SameSite=Lax`;
-    const params = new URLSearchParams({
-      client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '',
-      redirect_uri: `${window.location.origin}/api/auth/connect/google/callback`,
-      response_type: 'code',
-      scope: GOOGLE_SCOPES.join(' '),
-      access_type: 'offline',
-      state,
-    });
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    router.push('/api/auth/connect/google');
   };
 
   const handleDisconnectConfirm = async () => {
     if (!googleConnection) return;
     const supabase = createClient();
-    await supabase
+    const { error: deleteError } = await supabase
       .from('connected_services')
       .delete()
       .eq('id', googleConnection.id);
+    if (deleteError) {
+      setError('Failed to disconnect service');
+      setShowDisconnectModal(false);
+      return;
+    }
     setGoogleConnection(null);
     setShowDisconnectModal(false);
   };
 
   if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
 
   const googleService = {
     name: 'Google',
