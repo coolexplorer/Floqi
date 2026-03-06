@@ -54,6 +54,56 @@ func setupWeatherTestServer(t *testing.T, location string, tempCelsius float64, 
 	}))
 }
 
+// TestGetWeather_InvalidJSON: 응답 바디가 유효하지 않은 JSON일 때 에러를 반환해야 한다.
+func TestGetWeather_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("not valid json"))
+	}))
+	defer server.Close()
+
+	client := newWithHTTP("apikey", server.URL, server.Client())
+	_, err := client.GetWeather(context.Background(), "Seoul")
+	if err == nil {
+		t.Fatal("expected error for invalid JSON body, got nil")
+	}
+}
+
+// TestGetWeather_HTTPError: API가 5xx 응답을 반환할 때 에러를 반환해야 한다.
+func TestGetWeather_HTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := newWithHTTP("apikey", server.URL, server.Client())
+	_, err := client.GetWeather(context.Background(), "Seoul")
+	if err == nil {
+		t.Fatal("expected error for HTTP 500, got nil")
+	}
+}
+
+// TestGetWeather_EmptyResponse: weather 배열이 비어 있을 때 Condition이 빈 문자열로 처리돼야 한다.
+func TestGetWeather_EmptyWeatherArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"name":    "Seoul",
+			"weather": []interface{}{},
+			"main":    map[string]interface{}{"temp": 20.0, "humidity": 50},
+		})
+	}))
+	defer server.Close()
+
+	client := newWithHTTP("apikey", server.URL, server.Client())
+	result, err := client.GetWeather(context.Background(), "Seoul")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Condition != "" {
+		t.Errorf("expected empty Condition for empty weather array, got %q", result.Condition)
+	}
+}
+
 // TC-4003 관련: GetWeather(location) → returns *WeatherData
 func TestGetWeather(t *testing.T) {
 	tests := []struct {

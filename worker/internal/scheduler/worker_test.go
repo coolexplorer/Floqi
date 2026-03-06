@@ -17,6 +17,7 @@ type mockExecutionLogger struct {
 	createCalls   []createLogCall
 	updateCalls   []updateLogCall
 	logIDToReturn string
+	latestLogID   string
 }
 
 type createLogCall struct {
@@ -50,6 +51,10 @@ func (m *mockExecutionLogger) UpdateExecutionLog(ctx context.Context, logID stri
 		retried:  retried,
 	})
 	return nil
+}
+
+func (m *mockExecutionLogger) GetLatestLogID(ctx context.Context, automationID string) (string, error) {
+	return m.latestLogID, nil
 }
 
 // newTestWorker creates an AutomationWorker with an injected fixed retry count
@@ -226,5 +231,63 @@ func TestHandleAutomationRun_AllRetriesFailed(t *testing.T) {
 	}
 	if u.errorMsg == "" {
 		t.Error("TC-5017: expected non-empty error_message in execution log")
+	}
+}
+
+// Issue 2: invalid JSON payload returns error immediately.
+func TestHandleAutomationRun_InvalidPayload_ReturnsError(t *testing.T) {
+	mockLogger := &mockExecutionLogger{}
+	worker := newTestWorker(nil, mockLogger, 0)
+	task := asynq.NewTask(TaskTypeAutomationRun, []byte("not-json"))
+
+	err := worker.handleAutomationRun(context.Background(), task)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON payload, got nil")
+	}
+	if len(mockLogger.createCalls) != 0 {
+		t.Error("expected no CreateExecutionLog call on invalid payload")
+	}
+}
+
+// Issue 2: empty automationID in payload returns error.
+func TestHandleAutomationRun_EmptyAutomationID_ReturnsError(t *testing.T) {
+	mockLogger := &mockExecutionLogger{}
+	worker := newTestWorker(nil, mockLogger, 0)
+	payload, _ := json.Marshal(map[string]string{"automation_id": ""})
+	task := asynq.NewTask(TaskTypeAutomationRun, payload)
+
+	err := worker.handleAutomationRun(context.Background(), task)
+	if err == nil {
+		t.Fatal("expected error for empty automationID, got nil")
+	}
+}
+
+// Issue 1: on retry (retryCount>0), GetLatestLogID is used instead of CreateExecutionLog.
+func TestHandleAutomationRun_Retry_UsesGetLatestLogID(t *testing.T) {
+	mockLogger := &mockExecutionLogger{latestLogID: "log-retry-999"}
+
+	mockRun := func(ctx context.Context, automationID string) (*agent.ExecutionResult, error) {
+		return &agent.ExecutionResult{Output: "retry success"}, nil
+	}
+
+	worker := newTestWorker(mockRun, mockLogger, 1) // retryCount=1: second attempt
+	task := makeTask("auto-retry")
+
+	err := worker.handleAutomationRun(context.Background(), task)
+	if err != nil {
+		t.Fatalf("expected nil error on retry success, got: %v", err)
+	}
+
+	// CreateExecutionLog must NOT be called on retry
+	if len(mockLogger.createCalls) != 0 {
+		t.Errorf("expected 0 CreateExecutionLog calls on retry, got %d", len(mockLogger.createCalls))
+	}
+
+	// UpdateExecutionLog must use the logID from GetLatestLogID
+	if len(mockLogger.updateCalls) != 1 {
+		t.Fatalf("expected 1 UpdateExecutionLog call, got %d", len(mockLogger.updateCalls))
+	}
+	if mockLogger.updateCalls[0].logID != "log-retry-999" {
+		t.Errorf("logID = %q, want %q", mockLogger.updateCalls[0].logID, "log-retry-999")
 	}
 }

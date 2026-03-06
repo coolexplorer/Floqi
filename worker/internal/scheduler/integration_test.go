@@ -17,6 +17,7 @@ type syncedExecutionLogger struct {
 	creates       []createLogCall
 	updates       []updateLogCall
 	logIDToReturn string
+	latestLogID   string
 }
 
 func (s *syncedExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error) {
@@ -41,6 +42,12 @@ func (s *syncedExecutionLogger) UpdateExecutionLog(ctx context.Context, logID st
 		retried:  retried,
 	})
 	return nil
+}
+
+func (s *syncedExecutionLogger) GetLatestLogID(ctx context.Context, automationID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.latestLogID, nil
 }
 
 func (s *syncedExecutionLogger) snapshotCreates() []createLogCall {

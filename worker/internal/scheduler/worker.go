@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 
 	"floqi/worker/internal/agent"
 	"github.com/hibiken/asynq"
@@ -15,6 +17,7 @@ type RunnerFunc func(ctx context.Context, automationID string) (*agent.Execution
 type ExecutionLogger interface {
 	CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error)
 	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error
+	GetLatestLogID(ctx context.Context, automationID string) (string, error)
 }
 
 // AutomationWorker processes automation:run tasks from the Asynq queue.
@@ -41,8 +44,14 @@ func NewAutomationWorker(run RunnerFunc, logger ExecutionLogger) *AutomationWork
 // Returning an error causes Asynq to schedule a retry.
 func (w *AutomationWorker) handleAutomationRun(ctx context.Context, task *asynq.Task) error {
 	var payload map[string]string
-	json.Unmarshal(task.Payload(), &payload)
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal task payload: %w", err)
+	}
+
 	automationID := payload["automation_id"]
+	if automationID == "" {
+		return errors.New("automationID is empty in payload")
+	}
 
 	retryCount := w.getRetryCount(ctx)
 	retried := retryCount > 0
@@ -50,6 +59,8 @@ func (w *AutomationWorker) handleAutomationRun(ctx context.Context, task *asynq.
 	var logID string
 	if retryCount == 0 {
 		logID, _ = w.logger.CreateExecutionLog(ctx, automationID, "running")
+	} else {
+		logID, _ = w.logger.GetLatestLogID(ctx, automationID)
 	}
 
 	result, err := w.run(ctx, automationID)
