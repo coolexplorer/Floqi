@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
   const encryptedAccess = await encrypt(tokens.access_token ?? '');
   const encryptedRefresh = await encrypt(tokens.refresh_token ?? '');
 
-  await supabase.from('connected_services').upsert({
+  const { error: upsertError } = await supabase.from('connected_services').upsert({
     user_id: user.id,
     service_name: 'google',
     encrypted_access_token: encryptedAccess,
@@ -84,5 +84,14 @@ export async function GET(request: NextRequest) {
     connected_at: new Date().toISOString(),
   });
 
-  return NextResponse.redirect(new URL('/connections', request.url), 302);
+  if (upsertError) {
+    return NextResponse.json(
+      { error: 'Failed to save connection' },
+      { status: 500 }
+    );
+  }
+
+  const response = NextResponse.redirect(new URL('/connections', request.url), 302);
+  response.cookies.delete('oauth_state');
+  return response;
 }

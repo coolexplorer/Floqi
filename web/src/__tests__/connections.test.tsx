@@ -21,8 +21,6 @@ vi.mock("next/navigation", () => ({
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockInsert = vi.fn();
-const mockDelete = vi.fn();
-const mockEq = vi.fn();
 const mockGetUser = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -79,14 +77,9 @@ describe("ConnectionsPage", () => {
     });
     await userEvent.click(connectButton);
 
-    // Assert — should redirect to Google OAuth consent URL
+    // Assert — should call router.push with Google OAuth API route
     await waitFor(() => {
-      const redirected =
-        window.location.href.includes("accounts.google.com") ||
-        mockPush.mock.calls.some((call) =>
-          call[0]?.includes("accounts.google.com")
-        );
-      expect(redirected).toBe(true);
+      expect(mockPush).toHaveBeenCalledWith('/api/auth/connect/google');
     });
 
     // Restore
@@ -232,5 +225,64 @@ describe("ConnectionsPage", () => {
       expect(screen.getByText(/연결됨/i)).toBeInTheDocument();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("fetch error → shows error message", async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "DB error" },
+        }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/error|failed/i)).toBeInTheDocument();
+    });
+  });
+
+  it("TC-2005 variant: disconnect DELETE failure → error shown", async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "conn-1",
+              service_name: "google",
+              connected_at: "2026-03-01T10:00:00Z",
+              scopes: ["gmail.readonly"],
+            },
+          ],
+          error: null,
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: { message: "Delete failed" } }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    await screen.findByRole("button", { name: /연결 해제|disconnect/i });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /연결 해제|disconnect/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { hidden: false })).toBeInTheDocument();
+    });
+
+    const confirmButton = screen.getByRole("button", {
+      name: /확인|confirm|연결 해제|disconnect/i,
+    });
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/error|failed|실패/i)).toBeInTheDocument();
+    });
   });
 });
