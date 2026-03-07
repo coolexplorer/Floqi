@@ -55,14 +55,32 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  if (!user && pathname.startsWith("/dashboard")) {
     const redirectUrl = new URL("/login", request.url);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && (pathname.startsWith("/dashboard") || pathname === "/onboarding")) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .single();
+
+    const onboardingCompleted = profile?.onboarding_completed ?? false;
+
+    if (pathname.startsWith("/dashboard") && !onboardingCompleted) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+
+    if (pathname === "/onboarding" && onboardingCompleted) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/:path*"],
+  matcher: ["/dashboard/:path*", "/onboarding", "/api/:path*"],
 };
