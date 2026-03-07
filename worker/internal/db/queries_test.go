@@ -474,3 +474,202 @@ func TestGetAutomationConfig_NotFound_ReturnsError(t *testing.T) {
 	// NOTE: 실제 DBStore 구현 시 이 테스트를 보완:
 	//   if err == nil && config == nil { t.Error("expected error for missing automation") }
 }
+
+// ── ExecutionLog 타입 및 GetExecutionLogsByDateRange 계약 테스트 ───────────────
+
+// ExecutionLogQuerierCompat는 DBStore가 구현해야 할 GetExecutionLogsByDateRange 인터페이스 검증용.
+type ExecutionLogQuerierCompat interface {
+	GetExecutionLogsByDateRange(ctx context.Context, userID string, startDate time.Time, endDate time.Time) ([]ExecutionLog, error)
+}
+
+// 컴파일 타임 인터페이스 만족 검증.
+// DBStore와 ExecutionLog 타입이 queries.go에 정의되지 않으면 컴파일 에러 (Red phase).
+var _ ExecutionLogQuerierCompat = (*DBStore)(nil)
+
+// mockExecutionLogStore는 GetExecutionLogsByDateRange 계약 테스트를 위한 인메모리 구현체.
+type mockExecutionLogStore struct {
+	logsToReturn []ExecutionLog
+	queryErr     error
+
+	capturedUserID    string
+	capturedStartDate time.Time
+	capturedEndDate   time.Time
+}
+
+func (m *mockExecutionLogStore) GetExecutionLogsByDateRange(
+	ctx context.Context,
+	userID string,
+	startDate time.Time,
+	endDate time.Time,
+) ([]ExecutionLog, error) {
+	m.capturedUserID = userID
+	m.capturedStartDate = startDate
+	m.capturedEndDate = endDate
+	if m.queryErr != nil {
+		return nil, m.queryErr
+	}
+	return m.logsToReturn, nil
+}
+
+// TC-DB-007: GetExecutionLogsByDateRange는 지정한 날짜 범위 내의 execution logs를 반환해야 한다.
+//
+// Verifies:
+//   - userID, startDate, endDate 파라미터가 올바르게 전달됨
+//   - 반환된 ExecutionLog에 ID, AutomationID, Status, CreatedAt 포함
+//   - 결과가 created_at DESC 순서로 정렬됨 (범위 내 최신 순)
+//
+// Red Phase: ExecutionLog 타입이나 DBStore.GetExecutionLogsByDateRange가 정의되지 않으면 컴파일 에러.
+func TestGetExecutionLogsByDateRange_ReturnsLogsInRange(t *testing.T) {
+	startDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2026, 3, 8, 0, 0, 0, 0, time.UTC)
+
+	completedAt1 := time.Date(2026, 3, 5, 10, 30, 0, 0, time.UTC)
+	completedAt2 := time.Date(2026, 3, 3, 9, 15, 0, 0, time.UTC)
+
+	store := &mockExecutionLogStore{
+		logsToReturn: []ExecutionLog{
+			{
+				ID:           "log-001",
+				AutomationID: "auto-weekly-001",
+				UserID:       "user-abc",
+				Status:       "success",
+				CreatedAt:    time.Date(2026, 3, 5, 10, 0, 0, 0, time.UTC),
+				CompletedAt:  &completedAt1,
+				Output:       "Weekly review sent.",
+				TokensUsed:   1700,
+				ToolCalls:    []ToolCall{{ToolName: "send_email", Input: "{}", Output: "sent"}},
+			},
+			{
+				ID:           "log-002",
+				AutomationID: "auto-morning-001",
+				UserID:       "user-abc",
+				Status:       "success",
+				CreatedAt:    time.Date(2026, 3, 3, 9, 0, 0, 0, time.UTC),
+				CompletedAt:  &completedAt2,
+				Output:       "Morning briefing sent.",
+				TokensUsed:   850,
+				ToolCalls:    nil,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	logs, err := store.GetExecutionLogsByDateRange(ctx, "user-abc", startDate, endDate)
+	if err != nil {
+		t.Fatalf("TC-DB-007: GetExecutionLogsByDateRange returned error: %v", err)
+	}
+
+	// 2개 로그 반환 검증
+	if len(logs) != 2 {
+		t.Fatalf("TC-DB-007: got %d logs, want 2", len(logs))
+	}
+
+	// 파라미터 전달 검증
+	if store.capturedUserID != "user-abc" {
+		t.Errorf("TC-DB-007: userID = %q, want %q", store.capturedUserID, "user-abc")
+	}
+	if !store.capturedStartDate.Equal(startDate) {
+		t.Errorf("TC-DB-007: startDate = %v, want %v", store.capturedStartDate, startDate)
+	}
+	if !store.capturedEndDate.Equal(endDate) {
+		t.Errorf("TC-DB-007: endDate = %v, want %v", store.capturedEndDate, endDate)
+	}
+
+	// 필드 검증: ExecutionLog 구조체에 올바른 필드가 있어야 한다
+	first := logs[0]
+	if first.ID == "" {
+		t.Error("TC-DB-007: ExecutionLog.ID must not be empty")
+	}
+	if first.AutomationID == "" {
+		t.Error("TC-DB-007: ExecutionLog.AutomationID must not be empty")
+	}
+	if first.Status == "" {
+		t.Error("TC-DB-007: ExecutionLog.Status must not be empty")
+	}
+	if first.CreatedAt.IsZero() {
+		t.Error("TC-DB-007: ExecutionLog.CreatedAt must not be zero")
+	}
+
+	// DESC 정렬 검증: 첫 번째 로그가 두 번째보다 최신이어야 함
+	if !logs[0].CreatedAt.After(logs[1].CreatedAt) {
+		t.Errorf("TC-DB-007: logs not sorted by created_at DESC: [0]=%v, [1]=%v",
+			logs[0].CreatedAt, logs[1].CreatedAt)
+	}
+
+	// ToolCalls 필드 검증
+	if len(logs[0].ToolCalls) != 1 {
+		t.Errorf("TC-DB-007: logs[0].ToolCalls length = %d, want 1", len(logs[0].ToolCalls))
+	}
+	if logs[0].ToolCalls[0].ToolName != "send_email" {
+		t.Errorf("TC-DB-007: ToolCall.ToolName = %q, want %q", logs[0].ToolCalls[0].ToolName, "send_email")
+	}
+}
+
+// TC-DB-007b: GetExecutionLogsByDateRange는 범위 내 로그가 없으면 빈 슬라이스를 반환해야 한다 (nil 아님).
+//
+// Verifies:
+//   - 범위 내 로그 없음 → 빈 슬라이스 반환 (nil이 아닌 []ExecutionLog{})
+//   - 에러 없음
+func TestGetExecutionLogsByDateRange_EmptySliceWhenNoLogs(t *testing.T) {
+	store := &mockExecutionLogStore{
+		logsToReturn: []ExecutionLog{}, // 범위 내 로그 없음
+	}
+
+	ctx := context.Background()
+	startDate := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC)
+
+	logs, err := store.GetExecutionLogsByDateRange(ctx, "user-empty", startDate, endDate)
+	if err != nil {
+		t.Fatalf("TC-DB-007b: unexpected error: %v", err)
+	}
+	if logs == nil {
+		t.Error("TC-DB-007b: expected empty slice, got nil — use []ExecutionLog{} not nil")
+	}
+	if len(logs) != 0 {
+		t.Errorf("TC-DB-007b: got %d logs, want 0", len(logs))
+	}
+}
+
+// TC-DB-007c: GetExecutionLogsByDateRange는 CompletedAt이 NULL인 실행 중인 로그를 올바르게 처리해야 한다.
+//
+// Verifies:
+//   - CompletedAt이 nil인 경우 (실행 중/실패) 정상 처리
+//   - Status 필드로 실행 상태 구분 가능
+func TestGetExecutionLogsByDateRange_HandlesNullCompletedAt(t *testing.T) {
+	store := &mockExecutionLogStore{
+		logsToReturn: []ExecutionLog{
+			{
+				ID:           "log-running-001",
+				AutomationID: "auto-001",
+				UserID:       "user-xyz",
+				Status:       "running",
+				CreatedAt:    time.Date(2026, 3, 7, 8, 0, 0, 0, time.UTC),
+				CompletedAt:  nil, // 실행 중 → NULL
+				Output:       "",
+				TokensUsed:   0,
+				ToolCalls:    nil,
+			},
+		},
+	}
+
+	ctx := context.Background()
+	startDate := time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2026, 3, 8, 0, 0, 0, 0, time.UTC)
+
+	logs, err := store.GetExecutionLogsByDateRange(ctx, "user-xyz", startDate, endDate)
+	if err != nil {
+		t.Fatalf("TC-DB-007c: unexpected error with NULL completed_at: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("TC-DB-007c: got %d logs, want 1", len(logs))
+	}
+
+	// CompletedAt이 nil이어야 함 (실행 중)
+	if logs[0].CompletedAt != nil {
+		t.Errorf("TC-DB-007c: CompletedAt = %v, want nil for running log", logs[0].CompletedAt)
+	}
+	if logs[0].Status != "running" {
+		t.Errorf("TC-DB-007c: Status = %q, want %q", logs[0].Status, "running")
+	}
+}

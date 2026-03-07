@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -121,6 +122,83 @@ func (s *DBStore) GetAutomationConfig(ctx context.Context, automationID string) 
 	}
 	cfg.Prompt = buildPrompt(templateType, cfg.Name)
 	return &cfg, nil
+}
+
+// ExecutionLog represents a single execution log record for an automation run.
+type ExecutionLog struct {
+	ID           string
+	AutomationID string
+	UserID       string
+	Status       string
+	CreatedAt    time.Time
+	CompletedAt  *time.Time
+	Output       string
+	TokensUsed   int
+	ToolCalls    []ToolCall
+}
+
+// ToolCall represents a single MCP tool invocation recorded in an execution log.
+type ToolCall struct {
+	ToolName string `json:"tool_name"`
+	Input    string `json:"input"`
+	Output   string `json:"output"`
+}
+
+// GetExecutionLogsByDateRange fetches execution logs for a user within a date range.
+// Used by Weekly Review template to aggregate weekly statistics.
+func (s *DBStore) GetExecutionLogsByDateRange(
+	ctx context.Context,
+	userID string,
+	startDate time.Time,
+	endDate time.Time,
+) ([]ExecutionLog, error) {
+	query := `
+		SELECT id, automation_id, status, created_at, completed_at, output, tokens_used, tool_calls
+		FROM execution_logs
+		WHERE user_id = $1
+		  AND created_at >= $2
+		  AND created_at < $3
+		ORDER BY created_at DESC
+	`
+
+	rows, err := s.pool.Query(ctx, query, userID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query execution logs: %w", err)
+	}
+	defer rows.Close()
+
+	logs := []ExecutionLog{}
+	for rows.Next() {
+		var log ExecutionLog
+		var toolCallsJSON []byte
+		err := rows.Scan(
+			&log.ID,
+			&log.AutomationID,
+			&log.Status,
+			&log.CreatedAt,
+			&log.CompletedAt,
+			&log.Output,
+			&log.TokensUsed,
+			&toolCallsJSON,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan execution log: %w", err)
+		}
+
+		if toolCallsJSON != nil {
+			if err := json.Unmarshal(toolCallsJSON, &log.ToolCalls); err != nil {
+				return nil, fmt.Errorf("failed to parse tool_calls: %w", err)
+			}
+		}
+
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating execution logs: %w", err)
+	}
+
+	return logs, nil
 }
 
 // buildPrompt constructs the LLM prompt for an automation based on its template type.

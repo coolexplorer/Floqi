@@ -354,3 +354,44 @@ func TestSmartSave_SavesEmailsToNotion(t *testing.T) {
 		t.Error("TC-4017: expected non-empty output")
 	}
 }
+
+// TC-4015: Notion 미연결 상태에서 Smart Save 실행 → 에러 반환
+//
+// 수락 기준: "Notion 미연결 상태에서 Smart Save 실행 → 실패 로그 + 'Notion 연결 필요' 안내"
+//
+// NOTE: ExecuteSmartSave는 아직 구현되지 않은 함수입니다.
+// 이 테스트는 실제 ExecuteSmartSave 구현이 추가될 때 활성화됩니다 (현재 컴파일 에러로 비활성화).
+// 구현 요구사항:
+//   - ExecuteSmartSave(profile UserProfile, registry ToolRegistry, webhookData string) (*ExecutionResult, error)
+//   - Notion 도구(create_notion_page)가 레지스트리에 없을 경우 에러 반환
+//   - 에러 메시지에 "Notion" 포함
+//   - ExecutionResult.Status = "failed" (또는 err != nil)
+//
+// func TestSmartSave_NotionDisconnected_ReturnsError(t *testing.T) {
+// 	profile := UserProfile{
+// 		Timezone:          "Asia/Seoul",
+// 		PreferredLanguage: "ko",
+// 	}
+//
+// 	// create_notion_page 도구가 없는 레지스트리 — Notion 미연결 상태 시뮬레이션
+// 	registry := &integrationMockRegistry{
+// 		handlers: map[string]func([]byte) (string, error){
+// 			"read_inbox":      func(input []byte) (string, error) { return "[]", nil },
+// 			"fetch_headlines": func(input []byte) (string, error) { return "[]", nil },
+// 			// create_notion_page 의도적으로 미등록
+// 		},
+// 	}
+//
+// 	result, err := ExecuteSmartSave(profile, registry, "webhook-data")
+//
+// 	// TC-4015: Notion 미연결 시 에러 반환 기대
+// 	if err == nil {
+// 		t.Error("TC-4015: Expected error when Notion is disconnected, got nil")
+// 	}
+// 	if err != nil && !strings.Contains(err.Error(), "Notion") {
+// 		t.Errorf("TC-4015: Error should mention Notion: %v", err)
+// 	}
+// 	if result != nil && result.Status != "failed" {
+// 		t.Errorf("TC-4015: Status = %s, want 'failed'", result.Status)
+// 	}
+// }

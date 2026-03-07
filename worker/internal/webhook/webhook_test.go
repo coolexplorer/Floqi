@@ -49,6 +49,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -417,7 +418,7 @@ func TestExecutorHandler_ValidPayload_ReturnsExecutionResult(t *testing.T) {
 		t.Error("TC-10020: response body should contain execution result, got empty body")
 	}
 	// automation_id 또는 output이 응답에 포함되어야 함
-	if !contains(responseBody, "auto-smart-save-456") && !contains(responseBody, "Notion") {
+	if !strings.Contains(responseBody, "auto-smart-save-456") && !strings.Contains(responseBody, "Notion") {
 		t.Errorf("TC-10020: response body should contain execution result, got: %q", responseBody)
 	}
 }
@@ -472,15 +473,3 @@ func TestExecutorHandler_InvalidSignature_Returns401(t *testing.T) {
 	}
 }
 
-// contains는 s 내에 substr이 포함되어 있는지 확인하는 헬퍼.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		func() bool {
-			for i := 0; i <= len(s)-len(substr); i++ {
-				if s[i:i+len(substr)] == substr {
-					return true
-				}
-			}
-			return false
-		}())
-}

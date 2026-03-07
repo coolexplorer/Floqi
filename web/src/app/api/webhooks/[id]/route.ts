@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { enqueueAutomation } from '@/lib/redis'
@@ -29,7 +30,14 @@ async function verifyHmacSignature(
   const hashArray = Array.from(new Uint8Array(signatureBuffer))
   const expectedHex = 'sha256=' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
-  return expectedHex === signature
+  try {
+    return timingSafeEqual(
+      Buffer.from(expectedHex, 'utf-8'),
+      Buffer.from(signature, 'utf-8')
+    )
+  } catch {
+    return false // Buffer length mismatch
+  }
 }
 
 export async function POST(
@@ -62,6 +70,14 @@ export async function POST(
 
   if (error || !automation) {
     return NextResponse.json({ error: 'Automation not found' }, { status: 404 })
+  }
+
+  // Check if automation is active
+  if (automation.status !== 'active') {
+    return NextResponse.json(
+      { error: 'Automation is not active' },
+      { status: 400 }
+    )
   }
 
   // 3. Enqueue automation job to Redis

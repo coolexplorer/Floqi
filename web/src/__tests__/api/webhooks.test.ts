@@ -404,3 +404,88 @@ describe("TC-5024: Invalid HMAC signature → 401 Unauthorized", () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 });
+
+// ─── TC-5025: 비활성 Automation → 400 ─────────────────────────────────────────
+
+describe("TC-5025: Inactive automation → 400 Bad Request", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
+  });
+
+  afterEach(() => {
+    delete process.env.WEBHOOK_SECRET;
+  });
+
+  it("TC-5025: paused automation → 400 Bad Request", async () => {
+    mockSingle.mockResolvedValue({
+      data: { id: AUTOMATION_ID, status: "paused" },
+      error: null,
+    });
+
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+      },
+      body: validPayload,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("TC-5025: inactive automation → enqueueAutomation NOT called", async () => {
+    mockSingle.mockResolvedValue({
+      data: { id: AUTOMATION_ID, status: "paused" },
+      error: null,
+    });
+
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+      },
+      body: validPayload,
+    });
+
+    await POST(request, { params: Promise.resolve({ id: AUTOMATION_ID }) });
+
+    expect(mockEnqueueAutomation).not.toHaveBeenCalled();
+  });
+
+  it("TC-5025: 400 response body explains automation is not active", async () => {
+    mockSingle.mockResolvedValue({
+      data: { id: AUTOMATION_ID, status: "paused" },
+      error: null,
+    });
+
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+      },
+      body: validPayload,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    const body = await response.json();
+    expect(body).toHaveProperty("error");
+    expect(typeof body.error).toBe("string");
+  });
+});
