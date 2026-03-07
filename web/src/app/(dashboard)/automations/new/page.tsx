@@ -95,41 +95,35 @@ export default function NewAutomationPage() {
 
   async function handleSubmit() {
     if (!selectedTemplate) return
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
 
-    const body = {
+    const payload = {
       name: name || selectedTemplate.label,
       description: description || selectedTemplate.description,
       template_type: selectedTemplate.id,
-      status: 'paused' as const,
+      status: 'paused',
       schedule_cron: cronExpression,
       timezone: timezone,
       config: {},
     }
 
-    let fetchAvailable = true
     try {
-      const res = await fetch('/api/automations', {
+      await fetch('/api/automations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) {
-        return
-      }
     } catch {
-      fetchAvailable = false
+      // fetch unavailable in this environment
     }
 
-    if (!fetchAvailable) {
-      await supabase.from('automations').insert({
-        user_id: user.id,
-        ...body,
-      })
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('automations').insert({ user_id: user.id, ...payload })
+      }
+    } catch {
+      // supabase insert failed
     }
 
     router.push('/automations')

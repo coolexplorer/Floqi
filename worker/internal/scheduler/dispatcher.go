@@ -91,6 +91,11 @@ func (d *CronDispatcher) checkAndEnqueueAt(ctx context.Context, now time.Time) e
 	return nil
 }
 
+// CronDispatcherCheckAt is a test helper that calls the internal checkAndEnqueueAt method.
+func CronDispatcherCheckAt(d *CronDispatcher, ctx context.Context, now time.Time) error {
+	return d.checkAndEnqueueAt(ctx, now)
+}
+
 // calculateNextRun returns the next scheduled time after now for the given cron expression,
 // computed in the specified timezone and returned in UTC.
 func calculateNextRun(parser cron.Parser, cronExpr, timezone string, now time.Time) (time.Time, error) {

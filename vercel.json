@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "buildCommand": "cd web && npm run build",
+  "installCommand": "cd web && npm install",
+  "outputDirectory": "web/.next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": {
+      "description": "Supabase project URL (public, can be exposed in browser)",
+      "required": true
+    },
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": {
+      "description": "Supabase anon key (public, for client-side auth)",
+      "required": true
+    },
+    "NEXT_PUBLIC_API_BASE_URL": {
+      "description": "API base URL (for development: http://localhost:3000, production: https://yourdomain.com)",
+      "required": true
+    },
+    "GOOGLE_CLIENT_ID": {
+      "description": "Google OAuth Client ID (from Google Cloud Console)",
+      "required": true
+    },
+    "GOOGLE_CLIENT_SECRET": {
+      "description": "Google OAuth Client Secret (secret, set in Vercel environment)",
+      "required": true
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    }
+  ],
+  "regions": ["sfo1"],
+  "functions": {
+    "api/auth/callback/google": {
+      "maxDuration": 30
+    },
+    "api/webhooks/github": {
+      "maxDuration": 30
+    }
+  }
+}

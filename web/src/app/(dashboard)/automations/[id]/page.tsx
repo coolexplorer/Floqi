@@ -65,6 +65,8 @@ export default function AutomationDetailPage() {
   const [loading, setLoading] = React.useState(true)
   const [deleting, setDeleting] = React.useState(false)
   const [toggling, setToggling] = React.useState(false)
+  const [runningNow, setRunningNow] = React.useState(false)
+  const [runFeedback, setRunFeedback] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'success' | 'error'>('all')
 
   React.useEffect(() => {
@@ -105,6 +107,23 @@ export default function AutomationDetailPage() {
     await supabase.from('automations').update({ status: newStatus }).eq('id', id)
     setAutomation((prev) => (prev ? { ...prev, status: newStatus } : prev))
     setToggling(false)
+  }
+
+  async function handleRunNow() {
+    setRunningNow(true)
+    setRunFeedback(null)
+    try {
+      const res = await fetch(`/api/automations/${id}/run`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setRunFeedback(data.status ?? 'queued')
+        // Button stays disabled after queuing — user must refresh to run again
+      } else {
+        setRunningNow(false)
+      }
+    } catch {
+      setRunningNow(false)
+    }
   }
 
   async function handleDelete() {
@@ -188,6 +207,19 @@ export default function AutomationDetailPage() {
 
         {/* Actions */}
         <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleRunNow}
+            disabled={runningNow}
+            loading={runningNow}
+            aria-label="Run Now"
+          >
+            Run Now
+          </Button>
+          {runFeedback && (
+            <span className="text-xs text-green-600">{runFeedback}</span>
+          )}
           <Button
             variant="secondary"
             size="sm"
