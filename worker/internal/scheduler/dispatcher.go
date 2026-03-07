@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -100,7 +101,7 @@ func calculateNextRun(parser cron.Parser, cronExpr, timezone string, now time.Ti
 
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
-		loc = time.UTC
+		return time.Time{}, fmt.Errorf("invalid timezone %q: %w", timezone, err)
 	}
 
 	return schedule.Next(now.In(loc)).UTC(), nil

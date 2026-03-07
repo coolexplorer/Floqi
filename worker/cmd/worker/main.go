@@ -18,11 +18,10 @@ import (
 
 	"floqi/worker/internal/agent"
 	"floqi/worker/internal/config"
+	"floqi/worker/internal/crypto"
 	"floqi/worker/internal/db"
 	"floqi/worker/internal/mcp"
 	"floqi/worker/internal/scheduler"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -80,23 +79,70 @@ func main() {
 	anthropicCl := anthropic.NewClient(option.WithAPIKey(cfg.AnthropicAPIKey))
 	agentClient := &anthropicAdapter{client: &anthropicCl}
 
-	// 7. Create runner function (executes an automation by ID)
+	// 7. Create DBStore and runner function (executes an automation by ID)
+	dbStore := db.NewDBStore(pool)
 	runner := func(ctx context.Context, automationID string) (*agent.ExecutionResult, error) {
-		// TODO: Load per-automation prompt and per-user OAuth tokens from DB
-		prompt := fmt.Sprintf("Execute automation task: %s", automationID)
-		return agent.ExecuteAutomation(ctx, agentClient, registry, prompt)
+		// Load automation config (name, prompt, user_id) from DB
+		autoCfg, err := dbStore.GetAutomationConfig(ctx, automationID)
+		if err != nil {
+			return nil, fmt.Errorf("load automation config: %w", err)
+		}
+
+		// Load user's OAuth tokens from connected_services
+		rows, queryErr := pool.Query(ctx,
+			`SELECT provider, access_token_encrypted FROM connected_services
+			 WHERE user_id = $1 AND is_active = true`,
+			autoCfg.UserID,
+		)
+		if queryErr != nil {
+			return nil, fmt.Errorf("load connected services for user %s: %w", autoCfg.UserID, queryErr)
+		}
+		defer rows.Close()
+
+		var gmailToken, calendarToken string
+		for rows.Next() {
+			var provider, encryptedToken string
+			if scanErr := rows.Scan(&provider, &encryptedToken); scanErr != nil {
+				return nil, fmt.Errorf("scan connected service: %w", scanErr)
+			}
+			token, decryptErr := crypto.Decrypt(encryptedToken)
+			if decryptErr != nil {
+				log.Warn().Err(decryptErr).Str("provider", provider).Msg("failed to decrypt token, skipping")
+				continue
+			}
+			if provider == "google" {
+				gmailToken = token
+				calendarToken = token
+			}
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			return nil, fmt.Errorf("iterate connected services: %w", rowsErr)
+		}
+
+		// Create per-user MCP registry with actual OAuth tokens
+		userRegistry, registryErr := mcp.NewRegistry(
+			gmailToken,
+			calendarToken,
+			cfg.WeatherAPIKey,
+			cfg.NewsAPIKey,
+			cfg.NotionToken,
+		)
+		if registryErr != nil {
+			return nil, fmt.Errorf("create user registry: %w", registryErr)
+		}
+
+		return agent.ExecuteAutomation(ctx, agentClient, userRegistry, autoCfg.Prompt)
 	}
 
 	// 8. Create AutomationQueue
 	queue := scheduler.NewAutomationQueue(asynqClient)
 
-	// 9. Create AutomationWorker
-	execLogger := &dbExecutionLogger{pool: pool}
-	worker := scheduler.NewAutomationWorker(runner, execLogger)
+	// 9. Create AutomationWorker (dbStore implements scheduler.ExecutionLogger)
+	worker := scheduler.NewAutomationWorker(runner, dbStore)
 
-	// 10. Create CronDispatcher
-	cronStore := &dbCronStore{pool: pool}
-	dispatcher := scheduler.NewCronDispatcher(cronStore, queue, pollInterval)
+	// 10. Create CronDispatcher (cronAdapter adapts db.DBStore to scheduler.CronStore)
+	cronAdapter := &dbCronAdapter{store: dbStore}
+	dispatcher := scheduler.NewCronDispatcher(cronAdapter, queue, pollInterval)
 
 	// 11. Start Asynq server (processes queued tasks)
 	srv := asynq.NewServer(redisOpt, asynq.Config{
@@ -251,41 +297,31 @@ func contentToBlocks(content interface{}) ([]anthropic.ContentBlockParamUnion, e
 	}
 }
 
-// ── DB stub implementations ───────────────────────────────────────────────────
-// These will be replaced with real SQL queries in a future sprint.
+// ── DB adapter ────────────────────────────────────────────────────────────────
 
-// dbCronStore implements scheduler.CronStore against PostgreSQL.
-type dbCronStore struct {
-	pool *pgxpool.Pool
+// dbCronAdapter adapts db.DBStore to the scheduler.CronStore interface,
+// converting db.DueAutomation to scheduler.ScheduledAutomation.
+type dbCronAdapter struct {
+	store *db.DBStore
 }
 
-func (s *dbCronStore) GetDueAutomations(ctx context.Context, now time.Time) ([]scheduler.ScheduledAutomation, error) {
-	// TODO: SELECT id, schedule_cron, timezone, next_run_at FROM automations
-	//       WHERE status = 'active' AND next_run_at <= $1
-	return nil, nil
+func (a *dbCronAdapter) GetDueAutomations(ctx context.Context, now time.Time) ([]scheduler.ScheduledAutomation, error) {
+	due, err := a.store.GetDueAutomations(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]scheduler.ScheduledAutomation, len(due))
+	for i, d := range due {
+		result[i] = scheduler.ScheduledAutomation{
+			ID:           d.ID,
+			ScheduleCron: d.ScheduleCron,
+			Timezone:     d.Timezone,
+			NextRunAt:    d.NextRunAt,
+		}
+	}
+	return result, nil
 }
 
-func (s *dbCronStore) UpdateNextRunAt(ctx context.Context, automationID string, nextRunAt time.Time) error {
-	// TODO: UPDATE automations SET next_run_at = $1 WHERE id = $2
-	return nil
-}
-
-// dbExecutionLogger implements scheduler.ExecutionLogger against PostgreSQL.
-type dbExecutionLogger struct {
-	pool *pgxpool.Pool
-}
-
-func (l *dbExecutionLogger) CreateExecutionLog(ctx context.Context, automationID, status string) (string, error) {
-	// TODO: INSERT INTO execution_logs (automation_id, status, started_at) VALUES (...)
-	return "", nil
-}
-
-func (l *dbExecutionLogger) UpdateExecutionLog(ctx context.Context, logID, status, output, errorMsg string, retried bool) error {
-	// TODO: UPDATE execution_logs SET status=$1, output=$2, error_message=$3, retried=$4 WHERE id=$5
-	return nil
-}
-
-func (l *dbExecutionLogger) GetLatestLogID(ctx context.Context, automationID string) (string, error) {
-	// TODO: SELECT id FROM execution_logs WHERE automation_id=$1 ORDER BY started_at DESC LIMIT 1
-	return "", nil
+func (a *dbCronAdapter) UpdateNextRunAt(ctx context.Context, automationID string, nextRunAt time.Time) error {
+	return a.store.UpdateNextRunAt(ctx, automationID, nextRunAt)
 }
