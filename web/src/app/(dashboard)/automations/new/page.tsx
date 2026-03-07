@@ -67,6 +67,7 @@ export default function NewAutomationPage() {
   const [name, setName] = React.useState('')
   const [description, setDescription] = React.useState('')
   const [cronExpression, setCronExpression] = React.useState('0 9 * * *')
+  const [timezone, setTimezone] = React.useState('UTC')
   const [googleConnectionError, setGoogleConnectionError] = React.useState(false)
 
   async function handleTemplateSelect(tpl: Template) {
@@ -106,7 +107,7 @@ export default function NewAutomationPage() {
       template_type: selectedTemplate.id,
       status: 'paused' as const,
       schedule_cron: cronExpression,
-      timezone: 'UTC',
+      timezone: timezone,
       config: {},
     }
 
@@ -242,6 +243,7 @@ export default function NewAutomationPage() {
           <SchedulePicker
             value={cronExpression}
             onChange={setCronExpression}
+            onTimezoneChange={setTimezone}
           />
         </div>
       ),
