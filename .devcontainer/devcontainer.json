@@ -1,0 +1,42 @@
+{
+  "name": "Floqi Development",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "bradlc.vscode-tailwindcss",
+        "humao.rest-client"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.toolsManagement.autoUpdate": true,
+        "go.delveConfig": {
+          "dlvLoadConfig": {
+            "followPointers": true,
+            "maxVariableRecurse": 1,
+            "maxStringLen": 512,
+            "maxArrayValues": 64,
+            "maxStructFields": -1
+          }
+        },
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [3000, 5432, 6379],
+  "postCreateCommand": "cd /workspace/web && npm install && cd /workspace/worker && go mod download",
+
+  "remoteUser": "node"
+}

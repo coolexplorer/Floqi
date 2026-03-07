@@ -17,6 +17,9 @@ export default function DashboardLayout({
             <a href="/dashboard/connections" className="text-sm text-gray-600 hover:text-gray-900">
               Connections
             </a>
+            <a href="/logs" className="text-sm text-gray-600 hover:text-gray-900">
+              Logs
+            </a>
           </div>
           <LogoutButton />
         </div>
