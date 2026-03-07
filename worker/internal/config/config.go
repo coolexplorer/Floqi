@@ -18,6 +18,8 @@ type Config struct {
 	AnthropicAPIKey    string
 	NewsAPIKey         string
 	WeatherAPIKey      string
+	NotionToken        string
+	PollInterval       string // cron poll interval (e.g. "1m"), defaults to "1m"
 }
 
 // LoadConfig loads configuration from environment variables.
@@ -37,6 +39,8 @@ func LoadConfig() (*Config, error) {
 		AnthropicAPIKey:    os.Getenv("ANTHROPIC_API_KEY"),
 		NewsAPIKey:         os.Getenv("NEWS_API_KEY"),
 		WeatherAPIKey:      os.Getenv("OPENWEATHERMAP_API_KEY"),
+		NotionToken:        os.Getenv("NOTION_TOKEN"),
+		PollInterval:       os.Getenv("CRON_POLL_INTERVAL"),
 	}
 
 	if err := cfg.validate(); err != nil {

@@ -39,6 +39,11 @@ func NewAutomationWorker(run RunnerFunc, logger ExecutionLogger) *AutomationWork
 	}
 }
 
+// Handler returns the Asynq task handler function for mux registration.
+func (w *AutomationWorker) Handler() func(context.Context, *asynq.Task) error {
+	return w.handleAutomationRun
+}
+
 // handleAutomationRun is the Asynq handler for automation:run tasks.
 // It creates an execution log, runs the automation, then updates the log with the result.
 // Returning an error causes Asynq to schedule a retry.
