@@ -1,23 +1,78 @@
-version: "3.8"
+# Floqi 로컬 개발 환경
+# - PostgreSQL: Supabase 대체 (로컬 DB)
+# - Redis: Upstash 대체 (로컬 Queue)
+# - App: VS Code Devcontainer용 개발 컨테이너
 
-# 로컬 개발용 Redis (Upstash 호환)
-# Upstash는 Redis 7 호환이므로 redis:7-alpine 사용
 services:
+  # ============================================================
+  # PostgreSQL (Supabase 대체)
+  # supabase/migrations/ 폴더의 SQL 파일을 알파벳 순으로 자동 실행
+  # ============================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: floqi-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: floqi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d floqi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis 7 (Upstash 대체)
+  # Asynq 작업 큐 및 Job 스케줄러용
+  # ============================================================
   redis:
     image: redis:7-alpine
     container_name: floqi-redis
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis-data:/data
     command: redis-server --save 60 1 --loglevel warning
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
     restart: unless-stopped
 
+  # ============================================================
+  # App (VS Code Devcontainer 개발 환경)
+  # Node.js 20 + Go 1.23 통합 개발 컨테이너
+  # ============================================================
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: floqi-app
+    volumes:
+      - .:/workspace:cached
+    command: sleep infinity
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Worker (Go) - 로컬 서비스 연결
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/floqi
+      REDIS_ADDR: redis:6379
+      # Next.js Web - 로컬 서비스 연결
+      NODE_ENV: development
+    restart: unless-stopped
+
 volumes:
-  redis_data:
+  postgres-data:
+    driver: local
+  redis-data:
     driver: local
