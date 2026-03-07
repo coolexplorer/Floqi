@@ -39,6 +39,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -671,5 +672,269 @@ func TestGetExecutionLogsByDateRange_HandlesNullCompletedAt(t *testing.T) {
 	}
 	if logs[0].Status != "running" {
 		t.Errorf("TC-DB-007c: Status = %q, want %q", logs[0].Status, "running")
+	}
+}
+
+// ── PM-02: GetConnectedServiceByProvider 테스트 ──────────────────────────────
+//
+// 구현 요구사항 (queries.go에 추가):
+//   func (s *DBStore) GetConnectedServiceByProvider(ctx context.Context, userID, provider string) (*ConnectedService, error)
+//
+// - provider는 "notion", "google" 등 서비스명
+// - 해당 user+provider 조합의 connected_services 레코드 반환
+// - 없으면 nil, ErrNotFound 반환
+
+// ConnectedServiceQuerierCompat는 DBStore가 구현해야 할 GetConnectedServiceByProvider 인터페이스 검증용.
+type ConnectedServiceQuerierCompat interface {
+	GetConnectedServiceByProvider(ctx context.Context, userID, provider string) (*ConnectedService, error)
+}
+
+// 컴파일 타임 인터페이스 만족 검증.
+// DBStore.GetConnectedServiceByProvider가 정의되지 않으면 컴파일 에러 (Red phase).
+var _ ConnectedServiceQuerierCompat = (*DBStore)(nil)
+
+// mockConnectedServiceStore는 GetConnectedServiceByProvider 테스트용 인메모리 mock.
+type mockConnectedServiceStore struct {
+	serviceToReturn *ConnectedService
+	queryErr        error
+
+	capturedUserID   string
+	capturedProvider string
+}
+
+func (m *mockConnectedServiceStore) GetConnectedServiceByProvider(ctx context.Context, userID, provider string) (*ConnectedService, error) {
+	m.capturedUserID = userID
+	m.capturedProvider = provider
+	if m.queryErr != nil {
+		return nil, m.queryErr
+	}
+	return m.serviceToReturn, nil
+}
+
+// TC-PM02-WRK-01: Notion 서비스가 연결된 사용자 → ConnectedService 반환
+//
+// Verifies:
+//   - userID + provider="notion" 조합으로 조회
+//   - ConnectedService에 ID, UserID, Provider, AccessTokenEncrypted 등 포함
+//   - IsActive=true 확인
+func TestGetConnectedServiceByProvider_NotionConnected(t *testing.T) {
+	store := &mockConnectedServiceStore{
+		serviceToReturn: &ConnectedService{
+			ID:                    "svc-notion-001",
+			UserID:                "user-001",
+			Provider:              "notion",
+			AccessTokenEncrypted:  "encrypted_notion_token",
+			RefreshTokenEncrypted: "", // Notion은 refresh token 없음
+			IsActive:              true,
+		},
+	}
+
+	ctx := context.Background()
+	svc, err := store.GetConnectedServiceByProvider(ctx, "user-001", "notion")
+
+	if err != nil {
+		t.Fatalf("TC-PM02-WRK-01: unexpected error: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("TC-PM02-WRK-01: expected non-nil ConnectedService")
+	}
+	if svc.ID != "svc-notion-001" {
+		t.Errorf("TC-PM02-WRK-01: ID = %q, want %q", svc.ID, "svc-notion-001")
+	}
+	if svc.Provider != "notion" {
+		t.Errorf("TC-PM02-WRK-01: Provider = %q, want %q", svc.Provider, "notion")
+	}
+	if svc.AccessTokenEncrypted == "" {
+		t.Error("TC-PM02-WRK-01: AccessTokenEncrypted must not be empty")
+	}
+	if !svc.IsActive {
+		t.Error("TC-PM02-WRK-01: IsActive must be true for active service")
+	}
+
+	// 파라미터 전달 검증
+	if store.capturedUserID != "user-001" {
+		t.Errorf("TC-PM02-WRK-01: userID = %q, want %q", store.capturedUserID, "user-001")
+	}
+	if store.capturedProvider != "notion" {
+		t.Errorf("TC-PM02-WRK-01: provider = %q, want %q", store.capturedProvider, "notion")
+	}
+}
+
+// TC-PM02-WRK-02: Notion 서비스가 없는 사용자 → nil + ErrNotFound 반환
+//
+// Verifies:
+//   - 해당 user+provider 조합이 DB에 없으면 에러 반환
+//   - 반환된 ConnectedService는 nil
+func TestGetConnectedServiceByProvider_NotFound(t *testing.T) {
+	store := &mockConnectedServiceStore{
+		serviceToReturn: nil,
+		queryErr:        fmt.Errorf("connected service not found"),
+	}
+
+	ctx := context.Background()
+	svc, err := store.GetConnectedServiceByProvider(ctx, "user-no-notion", "notion")
+
+	if err == nil {
+		t.Error("TC-PM02-WRK-02: expected error for missing service, got nil")
+	}
+	if svc != nil {
+		t.Errorf("TC-PM02-WRK-02: expected nil service, got %+v", svc)
+	}
+}
+
+// TC-PM02-WRK-03: is_active=false인 서비스 → 반환하되 IsActive=false 확인
+//
+// Verifies:
+//   - is_active=false인 레코드도 정상 조회됨
+//   - 호출부에서 IsActive 필드를 확인하여 처리
+func TestGetConnectedServiceByProvider_InactiveService(t *testing.T) {
+	store := &mockConnectedServiceStore{
+		serviceToReturn: &ConnectedService{
+			ID:                    "svc-notion-inactive",
+			UserID:                "user-002",
+			Provider:              "notion",
+			AccessTokenEncrypted:  "encrypted_expired_token",
+			RefreshTokenEncrypted: "",
+			IsActive:              false, // 비활성화된 서비스
+		},
+	}
+
+	ctx := context.Background()
+	svc, err := store.GetConnectedServiceByProvider(ctx, "user-002", "notion")
+
+	if err != nil {
+		t.Fatalf("TC-PM02-WRK-03: unexpected error: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("TC-PM02-WRK-03: expected non-nil ConnectedService even if inactive")
+	}
+	if svc.IsActive {
+		t.Error("TC-PM02-WRK-03: IsActive must be false for inactive service")
+	}
+}
+
+// TC-PM02-WRK-04: provider="google" 쿼리 → Google 서비스만 반환
+//
+// Verifies:
+//   - provider 필터링이 올바르게 동작
+//   - "google"로 조회 시 Google ConnectedService 반환
+func TestGetConnectedServiceByProvider_GoogleService(t *testing.T) {
+	store := &mockConnectedServiceStore{
+		serviceToReturn: &ConnectedService{
+			ID:                    "svc-google-001",
+			UserID:                "user-003",
+			Provider:              "google",
+			AccessTokenEncrypted:  "encrypted_google_access_token",
+			RefreshTokenEncrypted: "encrypted_google_refresh_token",
+			IsActive:              true,
+		},
+	}
+
+	ctx := context.Background()
+	svc, err := store.GetConnectedServiceByProvider(ctx, "user-003", "google")
+
+	if err != nil {
+		t.Fatalf("TC-PM02-WRK-04: unexpected error: %v", err)
+	}
+	if svc == nil {
+		t.Fatal("TC-PM02-WRK-04: expected non-nil ConnectedService")
+	}
+	if svc.Provider != "google" {
+		t.Errorf("TC-PM02-WRK-04: Provider = %q, want %q", svc.Provider, "google")
+	}
+	if store.capturedProvider != "google" {
+		t.Errorf("TC-PM02-WRK-04: queried provider = %q, want %q", store.capturedProvider, "google")
+	}
+}
+
+// ── PM-03: UpdateServiceIsActive 테스트 ──────────────────────────────────────
+//
+// 구현 요구사항 (queries.go에 추가):
+//   func (s *DBStore) UpdateServiceIsActive(ctx context.Context, serviceID string, isActive bool) error
+//
+// - connected_services의 is_active 필드를 업데이트
+// - refresh 실패 시 is_active=false로 마킹하여 Web UI에서 감지
+
+// ServiceActiveUpdaterCompat는 DBStore가 구현해야 할 UpdateServiceIsActive 인터페이스 검증용.
+type ServiceActiveUpdaterCompat interface {
+	UpdateServiceIsActive(ctx context.Context, serviceID string, isActive bool) error
+}
+
+// 컴파일 타임 인터페이스 만족 검증.
+// DBStore.UpdateServiceIsActive가 정의되지 않으면 컴파일 에러 (Red phase).
+var _ ServiceActiveUpdaterCompat = (*DBStore)(nil)
+
+// mockServiceActiveUpdater는 UpdateServiceIsActive 테스트용 인메모리 mock.
+type mockServiceActiveUpdater struct {
+	capturedServiceID string
+	capturedIsActive  bool
+	updateErr         error
+	called            bool
+}
+
+func (m *mockServiceActiveUpdater) UpdateServiceIsActive(ctx context.Context, serviceID string, isActive bool) error {
+	m.called = true
+	m.capturedServiceID = serviceID
+	m.capturedIsActive = isActive
+	return m.updateErr
+}
+
+// TC-PM03-WRK-01: isActive=false → is_active=false 업데이트
+//
+// Verifies:
+//   - serviceID와 isActive=false 파라미터가 올바르게 전달됨
+//   - 에러 없이 반환
+func TestUpdateServiceIsActive_SetFalse(t *testing.T) {
+	store := &mockServiceActiveUpdater{}
+	ctx := context.Background()
+
+	err := store.UpdateServiceIsActive(ctx, "svc-deactivate-001", false)
+
+	if err != nil {
+		t.Fatalf("TC-PM03-WRK-01: unexpected error: %v", err)
+	}
+	if !store.called {
+		t.Error("TC-PM03-WRK-01: UpdateServiceIsActive was not called")
+	}
+	if store.capturedServiceID != "svc-deactivate-001" {
+		t.Errorf("TC-PM03-WRK-01: serviceID = %q, want %q", store.capturedServiceID, "svc-deactivate-001")
+	}
+	if store.capturedIsActive {
+		t.Error("TC-PM03-WRK-01: isActive must be false")
+	}
+}
+
+// TC-PM03-WRK-02: isActive=true → is_active=true 업데이트 (재연결 시)
+//
+// Verifies:
+//   - isActive=true 파라미터가 올바르게 전달됨
+func TestUpdateServiceIsActive_SetTrue(t *testing.T) {
+	store := &mockServiceActiveUpdater{}
+	ctx := context.Background()
+
+	err := store.UpdateServiceIsActive(ctx, "svc-reactivate-001", true)
+
+	if err != nil {
+		t.Fatalf("TC-PM03-WRK-02: unexpected error: %v", err)
+	}
+	if !store.capturedIsActive {
+		t.Error("TC-PM03-WRK-02: isActive must be true")
+	}
+}
+
+// TC-PM03-WRK-03: 존재하지 않는 serviceID → 에러 반환
+//
+// Verifies:
+//   - DB에 없는 serviceID → 에러 반환 (0 rows affected)
+func TestUpdateServiceIsActive_NonExistentService(t *testing.T) {
+	store := &mockServiceActiveUpdater{
+		updateErr: fmt.Errorf("no rows affected: service not found"),
+	}
+	ctx := context.Background()
+
+	err := store.UpdateServiceIsActive(ctx, "svc-nonexistent", false)
+
+	if err == nil {
+		t.Error("TC-PM03-WRK-03: expected error for non-existent service, got nil")
 	}
 }

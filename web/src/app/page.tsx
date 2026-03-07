@@ -6,6 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { TopNavBar } from "@/components/layout/TopNavBar";
 import { Card } from "@/components/ui/Card";
+import { PricingTable } from "@/components/tables/PricingTable";
+import type { PricingPlan } from "@/components/tables/PricingTable";
 import {
   Sun,
   Mail,
@@ -60,7 +62,9 @@ export default function LandingPage() {
                 href="/signup"
                 className="inline-flex h-12 items-center rounded-lg bg-white px-8 text-base font-semibold text-blue-700 shadow-md transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-600"
               >
-                Get started free
+                <span>Get started</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
@@ -155,6 +159,28 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        {/* ── Pricing ──────────────────────────────────────────────────── */}
+        <section
+          data-testid="pricing-section"
+          aria-labelledby="pricing-heading"
+          className="bg-white py-20"
+        >
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <h2
+              id="pricing-heading"
+              className="text-center text-2xl font-bold text-slate-900 sm:text-3xl"
+            >
+              Pricing
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-slate-500">
+              Start with zero cost, upgrade when you need more.
+            </p>
+
+            <div className="mt-12">
+              <PricingTable plans={pricingPlans} />
+            </div>
+          </div>
+        </section>
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
@@ -187,6 +213,49 @@ const steps = [
     title: "Sit back and let AI work",
     description:
       "Your AI agent runs on autopilot — summarizing, triaging, saving, and notifying you automatically.",
+  },
+];
+
+const pricingPlans: PricingPlan[] = [
+  {
+    name: 'Free',
+    price: '$0',
+    priceSubtext: '/month',
+    ctaLabel: 'Get Started',
+    features: [
+      { label: '30 executions/month', included: true },
+      { label: '5 automations', included: true },
+      { label: 'Basic templates', included: true },
+      { label: 'Community support', included: true },
+      { label: 'Priority support', included: false },
+    ],
+  },
+  {
+    name: 'Pro',
+    price: '$19',
+    priceSubtext: '/month',
+    popular: true,
+    ctaLabel: 'Upgrade',
+    features: [
+      { label: '500 executions/month', included: true },
+      { label: 'Unlimited automations', included: true },
+      { label: 'All templates', included: true },
+      { label: 'Priority support', included: true },
+      { label: 'Advanced analytics', included: true },
+    ],
+  },
+  {
+    name: 'BYOK',
+    price: '-',
+    priceSubtext: 'bring your key',
+    ctaLabel: 'Get Started',
+    features: [
+      { label: 'Unlimited executions', included: true },
+      { label: 'Unlimited automations', included: true },
+      { label: 'Bring your own API key', included: true },
+      { label: 'All templates', included: true },
+      { label: 'Community support', included: true },
+    ],
   },
 ];
 

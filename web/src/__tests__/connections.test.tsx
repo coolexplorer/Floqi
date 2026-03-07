@@ -318,6 +318,144 @@ describe("ConnectionsPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  // === PM-03: Token Renewal Failure Banner Tests ===
+
+  it("PM-03: inactive service (is_active: false) → shows reconnection banner with service name", async () => {
+    // Arrange — Google is connected but token expired (is_active: false)
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "conn-1",
+              service_name: "google",
+              connected_at: "2026-03-01T10:00:00Z",
+              scopes: ["gmail.readonly"],
+              is_active: false,
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    // Assert — reconnection banner is displayed
+    await waitFor(() => {
+      expect(screen.getByText(/Google 연결이 만료되었습니다/i)).toBeInTheDocument();
+    });
+
+    // Assert — reconnect button exists and links to correct provider URL
+    const reconnectButton = screen.getByRole("link", { name: /재연결/i }) ||
+      screen.getByRole("button", { name: /재연결/i });
+    expect(reconnectButton).toBeInTheDocument();
+  });
+
+  it("PM-03: active service (is_active: true) → no reconnection banner", async () => {
+    // Arrange — Google is connected and active
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "conn-1",
+              service_name: "google",
+              connected_at: "2026-03-01T10:00:00Z",
+              scopes: ["gmail.readonly"],
+              is_active: true,
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    // Wait for page to render
+    await waitFor(() => {
+      expect(screen.getByText(/연결됨/i)).toBeInTheDocument();
+    });
+
+    // Assert — no reconnection banner
+    expect(screen.queryByText(/연결이 만료되었습니다/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /재연결/i })).not.toBeInTheDocument();
+  });
+
+  it("PM-03: multiple services, only expired one shows banner", async () => {
+    // Arrange — Google expired, Notion active
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "conn-1",
+              service_name: "google",
+              connected_at: "2026-03-01T10:00:00Z",
+              scopes: ["gmail.readonly"],
+              is_active: false,
+            },
+            {
+              id: "conn-2",
+              service_name: "notion",
+              connected_at: "2026-03-02T10:00:00Z",
+              scopes: [],
+              is_active: true,
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    // Assert — only Google shows reconnection banner
+    await waitFor(() => {
+      expect(screen.getByText(/Google 연결이 만료되었습니다/i)).toBeInTheDocument();
+    });
+
+    // Notion should NOT have a banner
+    expect(screen.queryByText(/Notion 연결이 만료되었습니다/i)).not.toBeInTheDocument();
+  });
+
+  it("PM-03: reconnect button links to correct provider OAuth URL", async () => {
+    // Arrange — Google is expired
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "conn-1",
+              service_name: "google",
+              connected_at: "2026-03-01T10:00:00Z",
+              scopes: ["gmail.readonly"],
+              is_active: false,
+            },
+          ],
+          error: null,
+        }),
+      }),
+    });
+
+    render(<ConnectionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Google 연결이 만료되었습니다/i)).toBeInTheDocument();
+    });
+
+    // Act — click reconnect button
+    const reconnectButton = screen.getByRole("link", { name: /재연결/i }) ||
+      screen.getByRole("button", { name: /재연결/i });
+    await userEvent.click(reconnectButton);
+
+    // Assert — navigates to Google OAuth connect route
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/api/auth/connect/google");
+    });
+  });
+
   it("TC-2005 variant: disconnect DELETE failure → error shown", async () => {
     setupDisconnectMock({ deleteError: { message: "Delete failed" } });
 
