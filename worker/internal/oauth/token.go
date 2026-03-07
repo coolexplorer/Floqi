@@ -8,6 +8,8 @@ import (
 
 	"floqi/worker/internal/crypto"
 	"floqi/worker/internal/db"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // OAuthClient refreshes OAuth access tokens using a refresh token.
@@ -23,6 +25,21 @@ func GetAccessToken(ctx context.Context, svc *db.ConnectedService, client OAuthC
 		return refreshAndUpdate(ctx, svc, client)
 	}
 	return decryptOrRaw(svc.AccessTokenEncrypted)
+}
+
+// GetAccessTokenAndMarkExpiredOnFailure wraps GetAccessToken.
+// On refresh failure, marks the service as inactive in the DB via pool.
+// Returns the original refresh error even if DB update fails.
+func GetAccessTokenAndMarkExpiredOnFailure(ctx context.Context, pool *pgxpool.Pool, svc *db.ConnectedService, client OAuthClient) (string, error) {
+	token, err := GetAccessToken(ctx, svc, client)
+	if err != nil {
+		// Best-effort: mark the service as inactive
+		if pool != nil {
+			_, _ = pool.Exec(ctx, `UPDATE connected_services SET is_active = $1 WHERE id = $2`, false, svc.ID)
+		}
+		return "", err
+	}
+	return token, nil
 }
 
 // refreshAndUpdate calls the OAuth client to get new tokens, encrypts them,
