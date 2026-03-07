@@ -32,7 +32,7 @@ export default function NaturalLanguageAutomationPage() {
       name: prompt.slice(0, 50),
       description: prompt,
       agent_prompt: prompt,
-      template_type: 'morning_briefing',
+      template_type: 'custom',
       schedule_cron: '0 9 * * *',
       status: 'paused',
     })

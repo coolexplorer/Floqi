@@ -31,14 +31,36 @@ function parseCronTime(cron: string): { minute: string; hour: string } {
   return { minute: parts[0], hour: parts[1] }
 }
 
-function buildCron(freq: Frequency, minute: string, hour: string): string {
+function parseCronDayOfWeek(cron: string): string {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return '1'
+  const dow = parts[4]
+  return dow !== '*' ? dow : '1'
+}
+
+function parseCronDayOfMonth(cron: string): string {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return '1'
+  const dom = parts[2]
+  return dom !== '*' ? dom : '1'
+}
+
+function buildCron(
+  freq: Frequency,
+  minute: string,
+  hour: string,
+  dayOfWeek: string,
+  dayOfMonth: string
+): string {
   const m = minute || '0'
   const h = hour || '9'
+  const dow = dayOfWeek || '1'
+  const dom = dayOfMonth || '1'
   switch (freq) {
     case 'weekly':
-      return `${m} ${h} * * 1`
+      return `${m} ${h} * * ${dow}`
     case 'monthly':
-      return `${m} ${h} 1 * *`
+      return `${m} ${h} ${dom} * *`
     default:
       return `${m} ${h} * * *`
   }
@@ -55,6 +77,8 @@ export default function EditAutomationPage() {
   const [frequency, setFrequency] = React.useState<Frequency>('daily')
   const [hour, setHour] = React.useState('9')
   const [minute, setMinute] = React.useState('0')
+  const [dayOfWeek, setDayOfWeek] = React.useState('1')
+  const [dayOfMonth, setDayOfMonth] = React.useState('1')
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
@@ -87,6 +111,8 @@ export default function EditAutomationPage() {
       const { minute: m, hour: h } = parseCronTime(auto.schedule_cron)
       setMinute(m)
       setHour(h)
+      setDayOfWeek(parseCronDayOfWeek(auto.schedule_cron))
+      setDayOfMonth(parseCronDayOfMonth(auto.schedule_cron))
       setLoading(false)
     }
     load()
@@ -100,20 +126,40 @@ export default function EditAutomationPage() {
     }
 
     setSaving(true)
-    const schedule_cron = buildCron(frequency, minute, hour)
+    const schedule_cron = buildCron(frequency, minute, hour, dayOfWeek, dayOfMonth)
 
-    const supabase = createClient()
-    const { error: saveError } = await supabase
-      .from('automations')
-      .update({ name, agent_prompt: prompt, schedule_cron })
-      .eq('id', id)
-
-    if (!saveError) {
-      router.push(`/automations/${id}`)
-    } else {
-      setError('저장에 실패했습니다')
-      setSaving(false)
+    // Try API route first; fall back to direct supabase if unavailable
+    let fetchAvailable = true
+    try {
+      const res = await fetch(`/api/automations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, agent_prompt: prompt, schedule_cron }),
+      })
+      if (!res.ok) {
+        setError('저장에 실패했습니다')
+        setSaving(false)
+        return
+      }
+    } catch {
+      fetchAvailable = false
     }
+
+    if (!fetchAvailable) {
+      const supabase = createClient()
+      const { error: saveError } = await supabase
+        .from('automations')
+        .update({ name, agent_prompt: prompt, schedule_cron })
+        .eq('id', id)
+
+      if (saveError) {
+        setError('저장에 실패했습니다')
+        setSaving(false)
+        return
+      }
+    }
+
+    router.push(`/automations/${id}`)
   }
 
   if (loading) {

@@ -143,15 +143,13 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
   const cronExpression = buildCron(state)
 
   function update(patch: Partial<ScheduleState>) {
-    setState((prev) => {
-      const next = { ...prev, ...patch }
-      const cron = buildCron(next)
-      onChange?.(cron)
-      if ('timezone' in patch && patch.timezone !== undefined) {
-        onTimezoneChange?.(patch.timezone)
-      }
-      return next
-    })
+    const nextState = { ...state, ...patch }
+    setState(nextState)
+    const cron = buildCron(nextState)
+    onChange?.(cron)
+    if ('timezone' in patch && patch.timezone !== undefined) {
+      onTimezoneChange?.(patch.timezone)
+    }
   }
 
   function handlePresetChange(preset: string) {

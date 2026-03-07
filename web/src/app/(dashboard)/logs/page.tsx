@@ -19,30 +19,63 @@ export default function LogsPage() {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all')
   const [dateFilter, setDateFilter] = React.useState<DateFilter>('all_time')
 
+  // Track whether initial load is done to avoid double-fetching on mount
+  const initialLoadDone = React.useRef(false)
+
+  // Unique automation {id, name} pairs from fetched logs (preserving first-seen order)
+  // Declared before the filter-change effect so it can be referenced there
+  const automationOptions = React.useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { id: string; name: string }[] = []
+    for (const log of logs) {
+      if (!seen.has(log.automation_name)) {
+        seen.add(log.automation_name)
+        opts.push({ id: log.automation_id, name: log.automation_name })
+      }
+    }
+    return opts
+  }, [logs])
+
+  // Initial load (with loading indicator)
   React.useEffect(() => {
     fetch('/api/logs')
       .then((res) => res.json())
       .then((data) => {
         setLogs(data.logs ?? [])
         setLoading(false)
+        initialLoadDone.current = true
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setLoading(false)
+        initialLoadDone.current = true
+      })
   }, [])
 
-  // Unique automation names from fetched logs (preserving first-seen order)
-  const automationNames = React.useMemo(() => {
-    const seen = new Set<string>()
-    const names: string[] = []
-    for (const log of logs) {
-      if (!seen.has(log.automation_name)) {
-        seen.add(log.automation_name)
-        names.push(log.automation_name)
-      }
-    }
-    return names
-  }, [logs])
+  // Server-side re-fetch when filters change (no loading indicator)
+  // automationOptions is used to map automation_name → automation_id for the API
+  React.useEffect(() => {
+    if (!initialLoadDone.current) return
 
-  // Client-side filtering
+    const params = new URLSearchParams()
+    if (automationFilter !== 'all') {
+      // Map name to id for server-side filter
+      const found = automationOptions.find((o) => o.name === automationFilter)
+      if (found) params.set('automation_id', found.id)
+    }
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    if (dateFilter !== 'all_time') {
+      params.set('days', dateFilter === 'last_7_days' ? '7' : '30')
+    }
+
+    const url = params.size > 0 ? `/api/logs?${params}` : '/api/logs'
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => setLogs(data.logs ?? []))
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automationFilter, statusFilter, dateFilter])
+
+  // Client-side filtering (fallback for when server filtering is not applied)
   const filteredLogs = React.useMemo(() => {
     let result = logs
 
@@ -179,10 +212,11 @@ export default function LogsPage() {
             className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
           >
             <option value="all">All</option>
-            {automationNames.map((name) => (
-              // aria-label provides accessible name; empty text content avoids
-              // conflicting with automation names rendered in the log list
-              <option key={name} value={name} aria-label={name} />
+            {automationOptions.map(({ id, name }) => (
+              // value=name allows userEvent.selectOptions to match by value;
+              // empty text content avoids conflicting with log entry text nodes;
+              // aria-label provides accessible name for getByRole("option") queries
+              <option key={id} value={name} aria-label={name} />
             ))}
           </select>
         </div>
