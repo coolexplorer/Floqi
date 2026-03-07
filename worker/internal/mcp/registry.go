@@ -9,26 +9,32 @@ import (
 	"floqi/worker/internal/agent"
 	"floqi/worker/internal/mcp/tools/calendar"
 	"floqi/worker/internal/mcp/tools/gmail"
+	"floqi/worker/internal/mcp/tools/news"
+	"floqi/worker/internal/mcp/tools/notion"
 	"floqi/worker/internal/mcp/tools/weather"
 )
 
-// StandardRegistry connects Gmail, Calendar, and Weather tool clients to the agent executor.
+// StandardRegistry connects Gmail, Calendar, Weather, News, and Notion tool clients to the agent executor.
 type StandardRegistry struct {
 	gmailClient    *gmail.Client
 	calendarClient *calendar.Client
 	weatherClient  *weather.Client
+	newsClient     *news.Client
+	notionClient   *notion.Client
 }
 
 // NewRegistry creates a StandardRegistry with tool clients initialized from the given credentials.
-func NewRegistry(gmailToken, calendarToken, weatherAPIKey string) (*StandardRegistry, error) {
+func NewRegistry(gmailToken, calendarToken, weatherAPIKey, newsAPIKey, notionToken string) (*StandardRegistry, error) {
 	return &StandardRegistry{
 		gmailClient:    gmail.New(gmailToken),
 		calendarClient: calendar.New(calendarToken),
 		weatherClient:  weather.New(weatherAPIKey),
+		newsClient:     news.New(newsAPIKey),
+		notionClient:   notion.New(notionToken),
 	}, nil
 }
 
-// ListTools returns the 6 available tools with their schemas.
+// ListTools returns the 9 available tools with their schemas.
 func (r *StandardRegistry) ListTools() []agent.ToolDef {
 	return []agent.ToolDef{
 		{
@@ -101,6 +107,42 @@ func (r *StandardRegistry) ListTools() []agent.ToolDef {
 					"location": map[string]string{"type": "string", "description": "City name (e.g., 'Seoul')"},
 				},
 				"required": []string{"location"},
+			},
+		},
+		{
+			Name:        "fetch_headlines",
+			Description: "Fetch top news headlines by category",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"category":  map[string]string{"type": "string", "description": "News category (e.g., technology, business)"},
+					"page_size": map[string]string{"type": "integer", "description": "Number of articles to return (default 10)"},
+				},
+				"required": []string{"category"},
+			},
+		},
+		{
+			Name:        "create_notion_page",
+			Description: "Create a new page in a Notion database",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"database_id": map[string]string{"type": "string", "description": "Notion database ID"},
+					"title":       map[string]string{"type": "string", "description": "Page title"},
+					"content":     map[string]string{"type": "string", "description": "Page content (markdown)"},
+				},
+				"required": []string{"database_id", "title", "content"},
+			},
+		},
+		{
+			Name:        "search_notion_pages",
+			Description: "Search for pages in Notion by query",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]string{"type": "string", "description": "Search query string"},
+				},
+				"required": []string{"query"},
 			},
 		},
 	}
@@ -186,6 +228,39 @@ func (r *StandardRegistry) Execute(ctx context.Context, toolName string, input [
 			return "", err
 		}
 		result, _ := json.Marshal(w)
+		return string(result), nil
+
+	case "fetch_headlines":
+		category, _ := params["category"].(string)
+		pageSize := 10
+		if ps, ok := params["page_size"].(float64); ok {
+			pageSize = int(ps)
+		}
+		articles, err := r.newsClient.FetchHeadlines(ctx, category, pageSize)
+		if err != nil {
+			return "", err
+		}
+		result, _ := json.Marshal(articles)
+		return string(result), nil
+
+	case "create_notion_page":
+		databaseID, _ := params["database_id"].(string)
+		title, _ := params["title"].(string)
+		content, _ := params["content"].(string)
+		page, err := r.notionClient.CreatePage(ctx, databaseID, title, content)
+		if err != nil {
+			return "", err
+		}
+		result, _ := json.Marshal(page)
+		return string(result), nil
+
+	case "search_notion_pages":
+		query, _ := params["query"].(string)
+		pages, err := r.notionClient.SearchPages(ctx, query)
+		if err != nil {
+			return "", err
+		}
+		result, _ := json.Marshal(pages)
 		return string(result), nil
 
 	default:
