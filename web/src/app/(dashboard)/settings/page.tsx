@@ -50,6 +50,7 @@ export default function SettingsPage() {
   // Billing state
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
   const [billingError, setBillingError] = useState('');
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
   // Preferences state
   const [newsCategories, setNewsCategories] = useState<string[]>([]);
@@ -431,8 +432,10 @@ export default function SettingsPage() {
           {plan === 'free' ? (
             <button
               type="button"
+              disabled={isUpgrading}
               onClick={async () => {
                 setBillingError('');
+                setIsUpgrading(true);
                 try {
                   const res = await fetch('/api/billing/checkout', { method: 'POST' });
                   const data = await res.json();
@@ -443,9 +446,11 @@ export default function SettingsPage() {
                   window.location.href = data.url;
                 } catch {
                   setBillingError('Payment failed');
+                } finally {
+                  setIsUpgrading(false);
                 }
               }}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Upgrade to Pro
             </button>

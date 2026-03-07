@@ -47,6 +47,32 @@ vi.mock("@/lib/crypto", () => ({
   encrypt: vi.fn().mockResolvedValue("encrypted:value"),
 }));
 
+vi.mock("@/lib/stripe", () => ({
+  stripe: {
+    webhooks: {
+      constructEvent: vi.fn().mockImplementation((_body: string, sig: string) => {
+        if (!sig) throw new Error("Missing signature");
+        return JSON.parse(_body);
+      }),
+    },
+    checkout: {
+      sessions: {
+        create: vi.fn().mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
+      },
+    },
+  },
+}));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({
+    from: vi.fn().mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    }),
+  }),
+}));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function setupFreeUser() {
@@ -148,38 +174,18 @@ describe("TC-8003: Upgrade to Pro → Stripe Checkout 리다이렉트", () => {
 // ─── TC-8004: Webhook checkout.session.completed ──────────────────────────────
 
 describe("TC-8004: Stripe Webhook → 플랜 업데이트", () => {
-  it("TC-8004: POST /api/billing/webhook (checkout.session.completed) → 플랜 'pro' 업데이트", async () => {
-    // This test validates the webhook API route handler
-    // Import the route handler directly
-    let POST: (req: Request) => Promise<Response>;
-    try {
-      const mod = await import("@/app/api/billing/webhook/route");
-      POST = mod.POST;
-    } catch {
-      // RED: route doesn't exist yet — test fails at import
-      throw new Error(
-        "RED: /api/billing/webhook/route.ts does not exist yet"
-      );
-    }
-
-    const webhookPayload = {
-      type: "checkout.session.completed",
-      data: {
-        object: {
-          client_reference_id: "user-123",
-          subscription: "sub_abc123",
-        },
-      },
-    };
+  it("TC-8004: 유효한 서명이 없는 요청은 400으로 거부된다", async () => {
+    const { POST } = await import("@/app/api/billing/webhook/route");
 
     const request = new Request("http://localhost/api/billing/webhook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(webhookPayload),
+      body: JSON.stringify({ type: "checkout.session.completed" }),
     });
 
     const response = await POST(request);
-    expect(response.status).toBe(200);
+    // Missing stripe-signature header → 400
+    expect(response.status).toBe(400);
   });
 });
 

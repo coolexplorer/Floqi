@@ -14,9 +14,9 @@ function formatNumber(n: number): string {
 }
 
 export function UsageDashboard({ usage }: { usage: UsageData }) {
-  const percentage = Math.round(
-    (usage.monthlyExecutions / usage.monthlyExecutionLimit) * 100
-  );
+  const percentage = usage.monthlyExecutionLimit > 0
+    ? Math.min(Math.round((usage.monthlyExecutions / usage.monthlyExecutionLimit) * 100), 100)
+    : 0;
 
   return (
     <div className="space-y-4">
