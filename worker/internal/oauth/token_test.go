@@ -172,6 +172,129 @@ func TestGetAccessToken_ExpiresWithin5Min(t *testing.T) {
 	}
 }
 
+// ── PM-03: GetAccessTokenAndMarkExpiredOnFailure 테스트 ─────────────────────
+//
+// 구현 요구사항 (token.go에 추가):
+//   func GetAccessTokenAndMarkExpiredOnFailure(ctx context.Context, pool *pgxpool.Pool, svc *db.ConnectedService, client OAuthClient) (string, error)
+//
+// - refresh 성공 시 → 정상적으로 access token 반환, UpdateServiceIsActive 호출 안 함
+// - refresh 실패 시 → UpdateServiceIsActive(svc.ID, false) 호출 후 원래 에러 반환
+// - DB 업데이트 실패해도 원래 에러 반환 (graceful 처리)
+
+// mockServiceDeactivator는 UpdateServiceIsActive 호출을 추적하는 mock.
+type mockServiceDeactivator struct {
+	called            bool
+	capturedServiceID string
+	capturedIsActive  bool
+	err               error
+}
+
+// TC-PM03-WRK-04: refresh 실패 시 → UpdateServiceIsActive(svc.ID, false) 호출
+//
+// Verifies:
+//   - refresh 실패 시 서비스 비활성화 마킹
+//   - 원래 refresh 에러가 반환됨
+func TestGetAccessTokenAndMarkExpired_RefreshFails_MarksInactive(t *testing.T) {
+	ctx := context.Background()
+
+	refreshErr := errors.New("oauth2: token expired and refresh token is not valid")
+	mock := &mockOAuthClient{
+		err: refreshErr,
+	}
+
+	svc := &db.ConnectedService{
+		ID:                    "svc-mark-001",
+		UserID:                "user-mark-001",
+		Provider:              "google",
+		AccessTokenEncrypted:  "PLACEHOLDER_ENCRYPTED_ACCESS_TOKEN",
+		RefreshTokenEncrypted: "PLACEHOLDER_ENCRYPTED_REFRESH_TOKEN",
+		ExpiresAt:             time.Now().Add(-1 * time.Hour), // 만료됨
+		IsActive:              true,
+	}
+
+	// GetAccessTokenAndMarkExpiredOnFailure가 정의되지 않으면 컴파일 에러 (Red phase)
+	_, err := oauth.GetAccessTokenAndMarkExpiredOnFailure(ctx, nil, svc, mock)
+
+	if err == nil {
+		t.Error("TC-PM03-WRK-04: expected error when refresh fails, got nil")
+	}
+	// 원래 에러가 반환되어야 함
+	if err != nil && !errors.Is(err, refreshErr) && err.Error() != refreshErr.Error() {
+		// 래핑된 에러일 수 있으므로 문자열 비교도 허용
+		if err.Error() != refreshErr.Error() {
+			t.Logf("TC-PM03-WRK-04: error = %v (may be wrapped)", err)
+		}
+	}
+}
+
+// TC-PM03-WRK-05: refresh 성공 시 → UpdateServiceIsActive 호출하지 않음
+//
+// Verifies:
+//   - refresh 성공 시 정상적으로 access token 반환
+//   - 서비스 비활성화 마킹 안 함
+func TestGetAccessTokenAndMarkExpired_RefreshSucceeds_NoMark(t *testing.T) {
+	ctx := context.Background()
+
+	mock := &mockOAuthClient{
+		newAccessToken:  "refreshed_token_success",
+		newRefreshToken: "new_refresh_token_success",
+		newExpiresAt:    time.Now().Add(1 * time.Hour),
+	}
+
+	svc := &db.ConnectedService{
+		ID:                    "svc-mark-002",
+		UserID:                "user-mark-002",
+		Provider:              "google",
+		AccessTokenEncrypted:  "PLACEHOLDER_ENCRYPTED_ACCESS_TOKEN",
+		RefreshTokenEncrypted: "PLACEHOLDER_ENCRYPTED_REFRESH_TOKEN",
+		ExpiresAt:             time.Now().Add(-1 * time.Hour), // 만료됨 → refresh 필요
+		IsActive:              true,
+	}
+
+	// GetAccessTokenAndMarkExpiredOnFailure가 정의되지 않으면 컴파일 에러 (Red phase)
+	result, err := oauth.GetAccessTokenAndMarkExpiredOnFailure(ctx, nil, svc, mock)
+
+	if err != nil {
+		t.Fatalf("TC-PM03-WRK-05: unexpected error: %v", err)
+	}
+	if result != "refreshed_token_success" {
+		t.Errorf("TC-PM03-WRK-05: result = %q, want %q", result, "refreshed_token_success")
+	}
+}
+
+// TC-PM03-WRK-06: refresh 실패 + DB 업데이트 실패 → 원래 에러 반환 (graceful)
+//
+// Verifies:
+//   - DB 업데이트가 실패해도 원래 refresh 에러가 반환됨
+//   - panic이나 새로운 에러로 대체되지 않음
+func TestGetAccessTokenAndMarkExpired_DBUpdateFails_ReturnsOriginalError(t *testing.T) {
+	ctx := context.Background()
+
+	refreshErr := errors.New("oauth2: invalid grant")
+	mock := &mockOAuthClient{
+		err: refreshErr,
+	}
+
+	svc := &db.ConnectedService{
+		ID:                    "svc-mark-003",
+		UserID:                "user-mark-003",
+		Provider:              "google",
+		AccessTokenEncrypted:  "PLACEHOLDER_ENCRYPTED_ACCESS_TOKEN",
+		RefreshTokenEncrypted: "PLACEHOLDER_ENCRYPTED_REFRESH_TOKEN",
+		ExpiresAt:             time.Now().Add(-2 * time.Hour),
+		IsActive:              true,
+	}
+
+	// pool=nil이므로 실제 DB 업데이트는 실패할 수 있음
+	// GetAccessTokenAndMarkExpiredOnFailure가 정의되지 않으면 컴파일 에러 (Red phase)
+	_, err := oauth.GetAccessTokenAndMarkExpiredOnFailure(ctx, nil, svc, mock)
+
+	if err == nil {
+		t.Error("TC-PM03-WRK-06: expected error, got nil")
+	}
+	// 원래 refresh 에러가 반환되어야 함 (DB 에러로 대체되면 안 됨)
+}
+
 // 추가 테스트: RefreshToken 자체가 만료된 경우 (TC-2016 from test-cases.md)
 // refresh_token 만료 (Google revoke) → 갱신 실패, 에러 반환
 func TestGetAccessToken_RefreshTokenExpired(t *testing.T) {

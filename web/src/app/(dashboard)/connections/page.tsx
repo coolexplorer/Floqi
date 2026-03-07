@@ -14,6 +14,7 @@ interface ConnectedService {
   service_name: string;
   connected_at: string;
   scopes: string[];
+  is_active?: boolean;
 }
 
 const GOOGLE_SCOPES = [
@@ -24,12 +25,14 @@ const GOOGLE_SCOPES = [
 
 export default function ConnectionsPage() {
   const router = useRouter();
-  const [googleConnection, setGoogleConnection] = useState<ConnectedService | null>(null);
+  const [connections, setConnections] = useState<ConnectedService[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [affectedCount, setAffectedCount] = useState(0);
   const [affectedAutomationIds, setAffectedAutomationIds] = useState<string[]>([]);
+
+  const googleConnection = connections.find((s) => s.service_name === 'google') ?? null;
 
   useEffect(() => {
     async function fetchConnections() {
@@ -50,11 +53,7 @@ export default function ConnectionsPage() {
         setLoading(false);
         return;
       }
-      const google =
-        (data as ConnectedService[] | null)?.find(
-          (s) => s.service_name === 'google'
-        ) ?? null;
-      setGoogleConnection(google);
+      setConnections((data as ConnectedService[] | null) ?? []);
       setLoading(false);
     }
     fetchConnections();
@@ -95,12 +94,14 @@ export default function ConnectionsPage() {
       setShowDisconnectModal(false);
       return;
     }
-    setGoogleConnection(null);
+    setConnections((prev) => prev.filter((s) => s.id !== googleConnection.id));
     setShowDisconnectModal(false);
   };
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>{error}</div>;
+
+  const inactiveConnections = connections.filter((s) => s.is_active === false);
 
   const googleService = {
     name: 'Google',
@@ -125,6 +126,32 @@ export default function ConnectionsPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Connections</h1>
           <Button variant="primary">+ Add Integration</Button>
         </div>
+
+        {/* PM-03: Reconnection banners for inactive services */}
+        {inactiveConnections.map((svc) => {
+          const displayName = svc.service_name.charAt(0).toUpperCase() + svc.service_name.slice(1);
+          return (
+            <div
+              key={`banner-${svc.id}`}
+              className="mb-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
+            >
+              <span className="text-sm text-amber-800">
+                {displayName} 연결이 만료되었습니다
+              </span>
+              <a
+                href={`/api/auth/connect/${svc.service_name}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  router.push(`/api/auth/connect/${svc.service_name}`);
+                }}
+                className="text-sm font-medium text-amber-700 underline hover:text-amber-900"
+              >
+                재연결
+              </a>
+            </div>
+          );
+        })}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <ServiceCard
             service={googleService}

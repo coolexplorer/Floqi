@@ -201,6 +201,35 @@ func (s *DBStore) GetExecutionLogsByDateRange(
 	return logs, nil
 }
 
+// GetConnectedServiceByProvider returns the connected service for a user and provider.
+// Returns nil and an error if no service is found.
+func (s *DBStore) GetConnectedServiceByProvider(ctx context.Context, userID, provider string) (*ConnectedService, error) {
+	var svc ConnectedService
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, user_id, provider, encrypted_access_token, encrypted_refresh_token, expires_at, is_active
+		 FROM connected_services
+		 WHERE user_id = $1 AND service_name = $2
+		 LIMIT 1`,
+		userID, provider,
+	).Scan(&svc.ID, &svc.UserID, &svc.Provider, &svc.AccessTokenEncrypted, &svc.RefreshTokenEncrypted, &svc.ExpiresAt, &svc.IsActive)
+	if err != nil {
+		return nil, fmt.Errorf("get connected service by provider: %w", err)
+	}
+	return &svc, nil
+}
+
+// UpdateServiceIsActive updates the is_active field for a connected service.
+func (s *DBStore) UpdateServiceIsActive(ctx context.Context, serviceID string, isActive bool) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE connected_services SET is_active = $1 WHERE id = $2`,
+		isActive, serviceID,
+	)
+	if err != nil {
+		return fmt.Errorf("update service is_active: %w", err)
+	}
+	return nil
+}
+
 // buildPrompt constructs the LLM prompt for an automation based on its template type.
 func buildPrompt(templateType, name string) string {
 	switch templateType {
