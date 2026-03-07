@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { enqueueAutomation } from '@/lib/redis'
 
 export async function POST(
   _request: NextRequest,
@@ -27,6 +28,26 @@ export async function POST(
     return NextResponse.json({ error: 'Automation not found' }, { status: 404 })
   }
 
-  const logId = `log-${Date.now()}`
-  return NextResponse.json({ logId, status: 'queued' })
+  const { data: log, error: logError } = await supabase
+    .from('execution_logs')
+    .insert({
+      automation_id: id,
+      status: 'running',
+      started_at: new Date().toISOString(),
+      tool_calls: [],
+    })
+    .select('id')
+    .single()
+
+  if (logError || !log) {
+    return NextResponse.json({ error: 'Failed to create execution log' }, { status: 500 })
+  }
+
+  try {
+    await enqueueAutomation(id)
+  } catch {
+    return NextResponse.json({ error: 'Failed to enqueue automation' }, { status: 500 })
+  }
+
+  return NextResponse.json({ logId: log.id, status: 'queued' })
 }

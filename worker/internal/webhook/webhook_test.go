@@ -25,6 +25,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -210,6 +211,82 @@ func TestVerifyHMAC_TamperedBody_ReturnsFalse(t *testing.T) {
 
 	if VerifyHMAC(tamperedBody, signature, testSecret) {
 		t.Error("TC-10015: VerifyHMAC returned true for tampered request body")
+	}
+}
+
+// ── TC-10016: Enqueue path — automation_id 파싱 및 큐 등록 ────────────────────
+
+// mockQueue는 Enqueue 호출을 캡처하는 테스트용 QueueClient 구현체.
+type mockQueue struct {
+	calledWith []string
+	errToReturn error
+}
+
+func (m *mockQueue) Enqueue(automationID string) error {
+	m.calledWith = append(m.calledWith, automationID)
+	return m.errToReturn
+}
+
+// TC-10016: 유효한 서명 + automation_id 포함 바디 → Enqueue 호출 및 200 OK
+func TestWebhookHandler_ValidPayload_EnqueuesAutomation(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-123","trigger":"manual"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+	q := &mockQueue{}
+	handler := NewHandler(testSecret, q)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("TC-10016: status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if len(q.calledWith) != 1 || q.calledWith[0] != "auto-123" {
+		t.Errorf("TC-10016: Enqueue called with %v, want [auto-123]", q.calledWith)
+	}
+}
+
+// TC-10016: 유효한 서명이지만 automation_id 누락 → 400 Bad Request, Enqueue 미호출
+func TestWebhookHandler_MissingAutomationID_Returns400(t *testing.T) {
+	body := []byte(`{"trigger":"manual"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+	q := &mockQueue{}
+	handler := NewHandler(testSecret, q)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("TC-10016: status = %d, want %d (missing automation_id)", rr.Code, http.StatusBadRequest)
+	}
+	if len(q.calledWith) != 0 {
+		t.Errorf("TC-10016: Enqueue should not be called when automation_id is missing")
+	}
+}
+
+// TC-10016: Enqueue 실패 → 500 Internal Server Error
+func TestWebhookHandler_EnqueueFailure_Returns500(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-456"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+	q := &mockQueue{errToReturn: errors.New("redis unavailable")}
+	handler := NewHandler(testSecret, q)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("TC-10016: status = %d, want %d (enqueue failure)", rr.Code, http.StatusInternalServerError)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -58,8 +59,17 @@ func NewHandler(secret string, queue QueueClient) http.Handler {
 		}
 
 		if queue != nil {
-			// TODO: parse body JSON and extract automation_id for enqueue
-			_ = queue
+			var payload struct {
+				AutomationID string `json:"automation_id"`
+			}
+			if err := json.Unmarshal(body, &payload); err != nil || payload.AutomationID == "" {
+				http.Error(w, "invalid payload: missing automation_id", http.StatusBadRequest)
+				return
+			}
+			if err := queue.Enqueue(payload.AutomationID); err != nil {
+				http.Error(w, "failed to enqueue automation", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)

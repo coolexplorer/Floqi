@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [nameError, setNameError] = useState('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -64,6 +65,7 @@ export default function SettingsPage() {
       return;
     }
     setNameError('');
+    setIsSaving(true);
 
     const supabase = createClient();
     const { error } = await supabase
@@ -74,6 +76,8 @@ export default function SettingsPage() {
         preferred_language: language,
       })
       .eq('id', userId!);
+
+    setIsSaving(false);
 
     if (error) {
       setStatus('error');
@@ -157,9 +161,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={handleSave}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none"
+          disabled={isSaving}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save (저장)
+          {isSaving ? 'Saving...' : 'Save (저장)'}
         </button>
 
         {/* Status messages */}
