@@ -15,19 +15,41 @@ package webhook
 //     - 서명 누락 → 401 Unauthorized
 //     - 잘못된 서명 → 401 Unauthorized
 //
+// TC-10019~TC-10021: Webhook Trigger → Automation Executor 연동 테스트 (TDD Red Phase)
+// US-1005: Webhook 수신 시 자동화를 직접 실행하고 결과를 응답으로 반환한다.
+//
+// 추가 구현 요구사항:
+//   - WebhookExecutionResult 구조체:
+//     - AutomationID string `json:"automation_id"`
+//     - Output       string `json:"output"`
+//     - Success      bool   `json:"success"`
+//   - AutomationExecutor 인터페이스:
+//     - Execute(ctx context.Context, automationID string) (*WebhookExecutionResult, error)
+//   - ErrAutomationNotFound: 존재하지 않는 자동화 ID 조회 시 반환하는 에러
+//   - NewExecutorHandler(secret string, executor AutomationExecutor) http.Handler
+//     - 유효한 서명 + 존재하는 automation_id → 실행 → 결과 JSON 응답 → 200 OK
+//     - 유효한 서명 + 존재하지 않는 automation_id → 404 Not Found
+//     - 잘못된/누락된 서명 → 401 Unauthorized
+//
 // FAILURES expected (Red phase):
 //   - webhook 패키지 미존재 → 컴파일 에러
 //   - VerifyHMAC 함수 미구현 → 컴파일 에러
 //   - NewHandler 함수 미구현 → 컴파일 에러
+//   - WebhookExecutionResult 타입 미정의 → 컴파일 에러 (TC-10019~10021)
+//   - AutomationExecutor 인터페이스 미정의 → 컴파일 에러 (TC-10019~10021)
+//   - ErrAutomationNotFound 미정의 → 컴파일 에러 (TC-10021)
+//   - NewExecutorHandler 함수 미구현 → 컴파일 에러 (TC-10019~10021)
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -311,3 +333,143 @@ func TestVerifyHMAC_NearlyValidSignature_ReturnsFalse(t *testing.T) {
 		t.Error("TC-10015: VerifyHMAC should return false for nearly-valid signature (1 char diff)")
 	}
 }
+
+// ── TC-10019~10021: Webhook Trigger → Automation Executor 연동 ────────────────
+
+// mockAutomationExecutor는 AutomationExecutor 인터페이스의 테스트 구현체.
+// ACTUAL: AutomationExecutor 인터페이스 미정의 → 컴파일 에러
+type mockAutomationExecutor struct {
+	results     map[string]*WebhookExecutionResult
+	errToReturn error
+}
+
+func (m *mockAutomationExecutor) Execute(ctx context.Context, automationID string) (*WebhookExecutionResult, error) {
+	if m.errToReturn != nil {
+		return nil, m.errToReturn
+	}
+	if result, ok := m.results[automationID]; ok {
+		return result, nil
+	}
+	return nil, ErrAutomationNotFound
+}
+
+// TC-10019: 유효한 서명 + 유효한 automation_id → executor 호출 후 200 OK
+func TestExecutorHandler_ValidPayload_ExecutesAutomation(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-weekly-123"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+
+	// EXPECT: NewExecutorHandler가 정의되어 있고 executor를 호출 후 200 OK 반환
+	// ACTUAL: NewExecutorHandler 미구현 → 컴파일 에러
+	executor := &mockAutomationExecutor{
+		results: map[string]*WebhookExecutionResult{
+			"auto-weekly-123": {
+				AutomationID: "auto-weekly-123",
+				Output:       "주간 리뷰가 발송되었습니다.",
+				Success:      true,
+			},
+		},
+	}
+	handler := NewExecutorHandler(testSecret, executor)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("TC-10019: status = %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+// TC-10020: 유효한 서명 + 유효한 automation_id → 실행 결과가 JSON 응답 바디에 포함
+func TestExecutorHandler_ValidPayload_ReturnsExecutionResult(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-smart-save-456"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+
+	// EXPECT: 실행 결과(output, success)가 JSON 응답에 포함
+	// ACTUAL: NewExecutorHandler 미구현 → 컴파일 에러
+	executor := &mockAutomationExecutor{
+		results: map[string]*WebhookExecutionResult{
+			"auto-smart-save-456": {
+				AutomationID: "auto-smart-save-456",
+				Output:       "AI 뉴스 3건이 Notion에 저장되었습니다.",
+				Success:      true,
+			},
+		},
+	}
+	handler := NewExecutorHandler(testSecret, executor)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("TC-10020: status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	// 응답 바디에 실행 결과 포함 확인
+	responseBody := rr.Body.String()
+	if responseBody == "" {
+		t.Error("TC-10020: response body should contain execution result, got empty body")
+	}
+	// automation_id 또는 output이 응답에 포함되어야 함
+	if !strings.Contains(responseBody, "auto-smart-save-456") && !strings.Contains(responseBody, "Notion") {
+		t.Errorf("TC-10020: response body should contain execution result, got: %q", responseBody)
+	}
+}
+
+// TC-10021: 유효한 서명 + 존재하지 않는 automation_id → 404 Not Found
+func TestExecutorHandler_InvalidAutomationID_Returns404(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-nonexistent-999"}`)
+	signature := computeHMAC(body, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", signature)
+
+	rr := httptest.NewRecorder()
+
+	// EXPECT: 존재하지 않는 automation_id → ErrAutomationNotFound → 404 반환
+	// ACTUAL: NewExecutorHandler, ErrAutomationNotFound 미구현 → 컴파일 에러
+	executor := &mockAutomationExecutor{
+		results: map[string]*WebhookExecutionResult{}, // 빈 맵 — 어떤 automation도 없음
+	}
+	handler := NewExecutorHandler(testSecret, executor)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("TC-10021: status = %d, want %d (invalid automation_id)", rr.Code, http.StatusNotFound)
+	}
+}
+
+// TC-10021: NewExecutorHandler도 잘못된 서명 → 401 Unauthorized 반환해야 함
+func TestExecutorHandler_InvalidSignature_Returns401(t *testing.T) {
+	body := []byte(`{"automation_id":"auto-123"}`)
+	wrongSignature := "sha256=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Floqi-Signature", wrongSignature)
+
+	rr := httptest.NewRecorder()
+
+	// EXPECT: 잘못된 서명 → 401 (executor 호출 없이)
+	// ACTUAL: NewExecutorHandler 미구현 → 컴파일 에러
+	executor := &mockAutomationExecutor{
+		results: map[string]*WebhookExecutionResult{
+			"auto-123": {AutomationID: "auto-123", Output: "done", Success: true},
+		},
+	}
+	handler := NewExecutorHandler(testSecret, executor)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("TC-10021: status = %d, want %d (invalid signature)", rr.Code, http.StatusUnauthorized)
+	}
+}
+

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Sun, Mail, BookOpen, Zap, ArrowLeft, Pencil, Trash2, Play, Pause } from 'lucide-react'
+import { Sun, Mail, BookOpen, Zap, ArrowLeft, Pencil, Trash2, Play, Pause, Copy, Check } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
@@ -68,6 +68,7 @@ export default function AutomationDetailPage() {
   const [runningNow, setRunningNow] = React.useState(false)
   const [runFeedback, setRunFeedback] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'success' | 'error'>('all')
+  const [webhookCopied, setWebhookCopied] = React.useState(false)
 
   React.useEffect(() => {
     async function fetchData() {
@@ -132,6 +133,13 @@ export default function AutomationDetailPage() {
     const supabase = createClient()
     await supabase.from('automations').delete().eq('id', id)
     router.push('/automations')
+  }
+
+  async function handleCopyWebhookUrl() {
+    const url = `${window.location.origin}/api/webhooks/${id}`
+    await navigator.clipboard.writeText(url)
+    setWebhookCopied(true)
+    setTimeout(() => setWebhookCopied(false), 2000)
   }
 
   if (loading) {
@@ -254,6 +262,43 @@ export default function AutomationDetailPage() {
           >
             Delete
           </Button>
+        </div>
+      </div>
+
+      {/* Webhook URL */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-1 text-sm font-semibold text-slate-900">Webhook URL</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          외부 서비스에서 이 URL로 POST 요청을 보내 자동화를 트리거할 수 있습니다.
+          요청에 <code className="font-mono bg-slate-100 px-1 rounded">x-floqi-signature</code> 헤더를 포함해야 합니다.
+        </p>
+        <div className="flex items-center gap-2">
+          <code
+            data-testid="webhook-url"
+            className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-700"
+          >
+            {typeof window !== 'undefined'
+              ? `${window.location.origin}/api/webhooks/${id}`
+              : `/api/webhooks/${id}`}
+          </code>
+          <button
+            type="button"
+            onClick={handleCopyWebhookUrl}
+            aria-label="Copy webhook URL"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            {webhookCopied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                Copy
+              </>
+            )}
+          </button>
         </div>
       </div>
 

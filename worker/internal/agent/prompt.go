@@ -33,6 +33,14 @@ func buildSystemPrompt(profile UserProfile, templateType string) string {
 	case "email_triage":
 		sb.WriteString("You are an AI assistant that triages the user's emails.\n")
 		sb.WriteString("Classify emails as urgent, important, or reference.\n")
+	case "weekly_review":
+		sb.WriteString("You are an AI assistant that generates a personalized weekly review.\n")
+		sb.WriteString("Summarize the past 7 days: calendar events, important emails, and automation execution stats.\n")
+		sb.WriteString("Help the user reflect on the week and identify key accomplishments and follow-ups.\n")
+	case "smart_save":
+		sb.WriteString("You are an AI assistant that helps the user save and organize content.\n")
+		sb.WriteString("Find relevant emails or news articles matching the user's criteria and save them to Notion.\n")
+		sb.WriteString("Create well-structured Notion pages with clear titles and organized content.\n")
 	default:
 		sb.WriteString("You are a helpful AI assistant.\n")
 	}
