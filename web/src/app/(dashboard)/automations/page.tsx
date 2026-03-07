@@ -200,7 +200,7 @@ export default function AutomationsPage() {
   }
 
   function handleEdit(id: string) {
-    router.push(`/automations/${id}`)
+    router.push(`/automations/${id}/edit`)
   }
 
   if (loading) {
