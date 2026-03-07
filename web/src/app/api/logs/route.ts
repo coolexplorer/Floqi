@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 export interface ExecutionLog {
@@ -11,7 +11,7 @@ export interface ExecutionLog {
   error_message?: string
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -22,10 +22,28 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data, error } = await supabase
+  const { searchParams } = new URL(request.url)
+  const automationId = searchParams.get('automation_id')
+  const status = searchParams.get('status')
+  const days = searchParams.get('days')
+
+  let query = supabase
     .from('execution_logs')
     .select('id, automation_id, status, created_at, duration_ms, error_message, automations(name)')
     .order('created_at', { ascending: false })
+
+  if (automationId) {
+    query = query.eq('automation_id', automationId)
+  }
+  if (status) {
+    query = query.eq('status', status)
+  }
+  if (days) {
+    const daysAgo = new Date(Date.now() - parseInt(days, 10) * 24 * 60 * 60 * 1000)
+    query = query.gte('created_at', daysAgo.toISOString())
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

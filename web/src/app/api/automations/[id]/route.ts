@@ -16,14 +16,23 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { status } = await request.json()
+  const body = await request.json()
+  const updatePayload: Record<string, unknown> = {}
+
+  if ('status' in body) updatePayload.status = body.status
+  if ('name' in body) updatePayload.name = body.name
+  if ('agent_prompt' in body) updatePayload.agent_prompt = body.agent_prompt
+  if ('schedule_cron' in body) {
+    updatePayload.schedule_cron = body.schedule_cron
+    // Recalculate next_run_at based on new schedule (server-side in worker, not here)
+  }
 
   const { data, error } = await supabase
     .from('automations')
-    .update({ status })
+    .update(updatePayload)
     .eq('id', id)
     .eq('user_id', user.id)
-    .select('id, status')
+    .select('id, name, status, schedule_cron, agent_prompt')
     .single()
 
   if (error) {
