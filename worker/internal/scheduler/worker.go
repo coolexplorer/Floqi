@@ -39,6 +39,17 @@ func NewAutomationWorker(run RunnerFunc, logger ExecutionLogger) *AutomationWork
 	}
 }
 
+// NewAutomationWorkerWithRetryFn creates a new AutomationWorker with a custom retry count function.
+// This is intended for use in tests to inject a deterministic retry count.
+func NewAutomationWorkerWithRetryFn(run RunnerFunc, logger ExecutionLogger, retryFn func(context.Context) int) *AutomationWorker {
+	return &AutomationWorker{run: run, logger: logger, getRetryCount: retryFn}
+}
+
+// AutomationWorkerHandleTask is a test helper that calls the internal handleAutomationRun method.
+func AutomationWorkerHandleTask(w *AutomationWorker, ctx context.Context, task *asynq.Task) error {
+	return w.handleAutomationRun(ctx, task)
+}
+
 // Handler returns the Asynq task handler function for mux registration.
 func (w *AutomationWorker) Handler() func(context.Context, *asynq.Task) error {
 	return w.handleAutomationRun

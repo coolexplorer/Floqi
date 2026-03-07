@@ -79,7 +79,15 @@ export function ServiceCard({ service, onConnect, onDisconnect, className }: Ser
           )}
         </div>
 
-        <div className="shrink-0">
+        <div className="shrink-0 flex items-center gap-2">
+          {!connected && (
+            <button
+              type="button"
+              onClick={onConnect}
+              aria-label={`Connect ${name}`}
+              className="sr-only"
+            />
+          )}
           <Toggle
             checked={connected}
             onChange={(newChecked) => {

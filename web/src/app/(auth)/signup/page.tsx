@@ -29,7 +29,7 @@ export default function SignupPage() {
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError('8자 이상 입력하세요')
       return
     }
 
@@ -73,9 +73,10 @@ export default function SignupPage() {
               icon={<Mail className="h-4 w-4 text-slate-400" />}
             />
             <FormFieldPassword
-              label="Password"
+              label="비밀번호"
+              aria-label="Password"
               name="password"
-              placeholder="At least 8 characters"
+              placeholder="8자 이상 입력하세요"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               showStrength={true}
@@ -98,7 +99,7 @@ export default function SignupPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-500">
-            Already have an account?{' '}
+            Have an account?{' '}
             <a href="/login" className="font-medium text-blue-600 hover:text-blue-700">
               Sign In
             </a>
