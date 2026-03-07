@@ -230,6 +230,53 @@ func (s *DBStore) UpdateServiceIsActive(ctx context.Context, serviceID string, i
 	return nil
 }
 
+// GetMonthlyExecutionCount returns the execution count for the current month.
+func (s *DBStore) GetMonthlyExecutionCount(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx,
+		`SELECT COALESCE(executions_count, 0) FROM usage_tracking
+		 WHERE user_id = $1 AND period_start = date_trunc('month', NOW())::date`,
+		userID,
+	).Scan(&count)
+	if err != nil {
+		// No record found means 0 executions
+		if err.Error() == "no rows in result set" {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("get monthly execution count: %w", err)
+	}
+	return count, nil
+}
+
+// GetUserPlan returns the user's current plan from profiles.
+func (s *DBStore) GetUserPlan(ctx context.Context, userID string) (string, error) {
+	var plan string
+	err := s.pool.QueryRow(ctx,
+		`SELECT COALESCE(plan, 'free') FROM profiles WHERE id = $1`,
+		userID,
+	).Scan(&plan)
+	if err != nil {
+		return "", fmt.Errorf("get user plan: %w", err)
+	}
+	return plan, nil
+}
+
+// IncrementExecutionCount increments the monthly execution counter via upsert.
+func (s *DBStore) IncrementExecutionCount(ctx context.Context, userID string, tokensUsed int) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO usage_tracking (user_id, period_start, executions_count, llm_tokens_total)
+		 VALUES ($1, date_trunc('month', NOW())::date, 1, $2)
+		 ON CONFLICT (user_id, period_start)
+		 DO UPDATE SET executions_count = usage_tracking.executions_count + 1,
+		               llm_tokens_total = usage_tracking.llm_tokens_total + $2`,
+		userID, tokensUsed,
+	)
+	if err != nil {
+		return fmt.Errorf("increment execution count: %w", err)
+	}
+	return nil
+}
+
 // buildPrompt constructs the LLM prompt for an automation based on its template type.
 func buildPrompt(templateType, name string) string {
 	switch templateType {

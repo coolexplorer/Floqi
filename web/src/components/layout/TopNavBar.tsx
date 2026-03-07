@@ -136,7 +136,8 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
               )}
             >
-              Sign up free
+              <span>Sign up</span>
+              <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
             </a>
           </div>
 
@@ -213,7 +214,8 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500'
                   )}
                 >
-                  Sign up free
+                  <span>Sign up</span>
+                  <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
                 </a>
               </div>
             </div>

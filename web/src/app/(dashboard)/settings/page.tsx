@@ -47,6 +47,10 @@ export default function SettingsPage() {
   const [byokStatus, setByokStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showSwitchModal, setShowSwitchModal] = useState(false);
 
+  // Billing state
+  const [plan, setPlan] = useState<'free' | 'pro'>('free');
+  const [billingError, setBillingError] = useState('');
+
   // Preferences state
   const [newsCategories, setNewsCategories] = useState<string[]>([]);
   const [importanceCriteria, setImportanceCriteria] = useState('all');
@@ -106,6 +110,7 @@ export default function SettingsPage() {
         setTimezone(data.timezone ?? 'UTC');
         setLanguage(data.preferred_language ?? 'en');
         setLlmProvider(data.llm_provider ?? 'managed');
+        setPlan(data.plan === 'pro' ? 'pro' : 'free');
       }
 
       setLoading(false);
@@ -410,6 +415,52 @@ export default function SettingsPage() {
               <option value="all">전체</option>
             </select>
           </div>
+        </section>
+
+        {/* Billing Section */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-medium text-slate-800">Billing</h2>
+
+          <p className="text-sm text-slate-700">
+            Current Plan: {plan === 'pro' ? 'Pro' : 'Free'}
+          </p>
+          <p className="text-sm text-slate-500">
+            {plan === 'pro' ? '500' : '30'} executions/month
+          </p>
+
+          {plan === 'free' ? (
+            <button
+              type="button"
+              onClick={async () => {
+                setBillingError('');
+                try {
+                  const res = await fetch('/api/billing/checkout', { method: 'POST' });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setBillingError(data.error || 'Payment failed');
+                    return;
+                  }
+                  window.location.href = data.url;
+                } catch {
+                  setBillingError('Payment failed');
+                }
+              }}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Upgrade to Pro
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+            >
+              Manage Plan
+            </button>
+          )}
+
+          {billingError && (
+            <p className="text-sm text-red-600">{billingError}</p>
+          )}
         </section>
 
         {/* Unified Save Button */}
