@@ -79,17 +79,20 @@ test.describe('Automations', () => {
       await page.getByText('E2E Morning Briefing').click()
       await page.waitForURL(/\/automations\//)
 
-      // On detail page, click Pause
+      // Verify initial state is Active before toggling
+      await expect(page.getByText('Active')).toBeVisible({ timeout: 5000 })
       await page.getByRole('button', { name: /pause/i }).click()
       await expect(page.getByText('Paused')).toBeVisible({ timeout: 5000 })
     })
 
     test('TC-3008: toggle automation from paused to active', async ({ page }) => {
       await page.goto('/automations')
+      await expect(page.getByText('E2E Email Triage')).toBeVisible({ timeout: 10000 })
       await page.getByText('E2E Email Triage').click()
       await page.waitForURL(/\/automations\//)
 
-      // On detail page, click Activate
+      // Verify initial state is Paused before toggling
+      await expect(page.getByText('Paused')).toBeVisible({ timeout: 5000 })
       await page.getByRole('button', { name: /activate/i }).click()
       await expect(page.getByText('Active')).toBeVisible({ timeout: 5000 })
     })
@@ -99,14 +102,16 @@ test.describe('Automations', () => {
     test('TC-3014: shows empty state when no automations', async ({ page, userId }) => {
       // Clean all automations first
       await cleanupAutomations(userId)
-      await page.goto('/automations')
-      await expect(page.getByText('No automations yet')).toBeVisible({ timeout: 10000 })
-      await expect(page.getByText('Create Automation')).toBeVisible()
 
-      // Re-seed for other tests (restore state)
-      const { seedAutomation: seed } = await import('../helpers/data-helpers')
-      await seed(userId, { name: 'E2E Morning Briefing', template_type: 'morning_briefing', status: 'active', schedule_cron: '0 8 * * *' })
-      await seed(userId, { name: 'E2E Email Triage', template_type: 'email_triage', status: 'paused', schedule_cron: '0 9 * * *' })
+      try {
+        await page.goto('/automations')
+        await expect(page.getByText('No automations yet')).toBeVisible({ timeout: 10000 })
+        await expect(page.getByText('Create Automation')).toBeVisible()
+      } finally {
+        // Always re-seed for other tests (restore state)
+        await seedAutomation(userId, { name: 'E2E Morning Briefing', template_type: 'morning_briefing', status: 'active', schedule_cron: '0 8 * * *' })
+        await seedAutomation(userId, { name: 'E2E Email Triage', template_type: 'email_triage', status: 'paused', schedule_cron: '0 9 * * *' })
+      }
     })
   })
 
@@ -116,6 +121,9 @@ test.describe('Automations', () => {
       const auto = await seedAutomation(userId, { name: 'E2E Delete Me' })
       expect(auto).not.toBeNull()
 
+      // Register dialog handler before any navigation
+      page.on('dialog', (dialog) => dialog.accept())
+
       await page.goto('/automations')
       await expect(page.getByText('E2E Delete Me')).toBeVisible({ timeout: 10000 })
 
@@ -124,7 +132,6 @@ test.describe('Automations', () => {
       await page.waitForURL(/\/automations\//)
 
       // Click delete
-      page.on('dialog', (dialog) => dialog.accept())
       await page.getByRole('button', { name: /delete/i }).click()
 
       // Should redirect to automations list
@@ -135,16 +142,17 @@ test.describe('Automations', () => {
       const auto = await seedAutomation(userId, { name: 'E2E List Delete Test' })
       expect(auto).not.toBeNull()
 
+      // Register dialog handler before any navigation
+      page.on('dialog', (dialog) => dialog.accept())
+
       await page.goto('/automations')
       await expect(page.getByText('E2E List Delete Test')).toBeVisible({ timeout: 10000 })
 
-      // Click delete icon on the card (the AutomationCard has onDelete)
-      // Navigate to detail page first since list uses cards
+      // Navigate to detail page
       await page.getByText('E2E List Delete Test').click()
       await page.waitForURL(/\/automations\//)
 
-      // Accept the confirm dialog
-      page.on('dialog', (dialog) => dialog.accept())
+      // Click delete
       await page.getByRole('button', { name: /delete/i }).click()
       await page.waitForURL('**/automations', { timeout: 10000 })
 

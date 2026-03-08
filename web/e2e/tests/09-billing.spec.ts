@@ -25,10 +25,10 @@ test.describe('Billing', () => {
       })
     )
 
-    // Intercept navigation to Stripe
-    const navigationPromise = page.waitForURL(/stripe\.com/, { timeout: 10000 }).catch(() => null)
+    // Click and verify navigation to Stripe checkout
     await page.getByRole('button', { name: /upgrade to pro/i }).click()
-    await navigationPromise
+    await page.waitForURL(/stripe\.com/, { timeout: 10000 })
+    expect(page.url()).toMatch(/stripe\.com/)
   })
 
   test('TC-8004: Pro user sees Manage Plan button', async ({ page, adminClient, userId }) => {
@@ -71,9 +71,9 @@ test.describe('Billing', () => {
         })
       )
 
-      const navigationPromise = page.waitForURL(/stripe\.com/, { timeout: 10000 }).catch(() => null)
       await page.getByRole('button', { name: /manage plan/i }).click()
-      await navigationPromise
+      await page.waitForURL(/stripe\.com/, { timeout: 10000 })
+      expect(page.url()).toMatch(/stripe\.com/)
     } finally {
       await adminClient.from('profiles').update({ plan: 'free' }).eq('id', userId)
     }

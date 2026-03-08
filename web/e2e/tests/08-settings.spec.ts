@@ -10,7 +10,7 @@ test.describe('Settings', () => {
 
     test('TC-7002: save profile shows success toast', async ({ page }) => {
       await page.goto('/settings')
-      await page.waitForTimeout(1000) // Wait for data to load
+      await expect(page.locator('#display-name')).toBeVisible({ timeout: 10000 })
 
       const nameInput = page.locator('#display-name')
       await nameInput.clear()
@@ -28,7 +28,7 @@ test.describe('Settings', () => {
 
     test('TC-7014: empty name shows validation error', async ({ page }) => {
       await page.goto('/settings')
-      await page.waitForTimeout(500)
+      await expect(page.locator('#display-name')).toBeVisible({ timeout: 10000 })
       const nameInput = page.locator('#display-name')
       await nameInput.clear()
       await page.getByRole('button', { name: /save|저장/i }).click()
@@ -77,7 +77,7 @@ test.describe('Settings', () => {
 
     test('TC-7008: toggle news category', async ({ page }) => {
       await page.goto('/settings')
-      await page.waitForTimeout(1000)
+      await expect(page.getByLabel('Technology')).toBeVisible({ timeout: 10000 })
 
       const techCheckbox = page.getByLabel('Technology')
       const wasChecked = await techCheckbox.isChecked()

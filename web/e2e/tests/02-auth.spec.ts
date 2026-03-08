@@ -118,19 +118,12 @@ test.describe('Authentication', () => {
     test('TC-1009: Google OAuth button initiates OAuth flow', async ({ page }) => {
       await page.goto('/login')
       const loginUrl = page.url()
-      const [popup] = await Promise.all([
-        page.waitForEvent('popup', { timeout: 5000 }).catch(() => null),
-        page.getByRole('button', { name: /continue with google/i }).click(),
-      ])
-      if (popup) {
-        // OAuth opened in popup — verify it targets Google/Supabase
-        await expect(popup).toHaveURL(/accounts\.google\.com|supabase/)
-      } else {
-        // OAuth redirected the main page — verify it navigated away from /login
-        await page.waitForURL((url) => url.href !== loginUrl, { timeout: 5000 })
-        const newUrl = page.url()
-        expect(newUrl).not.toBe(loginUrl)
-      }
+      await page.getByRole('button', { name: /continue with google/i }).click()
+      // OAuth should redirect away from /login to Supabase/Google
+      await page.waitForURL((url) => url.href !== loginUrl, { timeout: 10000 })
+      const newUrl = page.url()
+      expect(newUrl).not.toBe(loginUrl)
+      expect(newUrl).toMatch(/supabase|google|accounts\.google\.com/)
     })
 
     test('TC-1010: Sign Up link on login page navigates to /signup', async ({ page }) => {
