@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,7 @@ export function Modal({
   className,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   // ESC key closes modal
   useEffect(() => {
@@ -54,9 +55,11 @@ export function Modal({
     };
   }, [isOpen]);
 
-  // Focus trap: focus first focusable element on open, trap Tab/Shift+Tab inside
+  // Focus trap: save previous focus, focus first element on open, trap Tab/Shift+Tab, restore on close
   useEffect(() => {
     if (!isOpen || !dialogRef.current) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
 
     const FOCUSABLE_SELECTORS =
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -94,7 +97,13 @@ export function Modal({
     };
 
     document.addEventListener('keydown', handleTabTrap);
-    return () => document.removeEventListener('keydown', handleTabTrap);
+    return () => {
+      document.removeEventListener('keydown', handleTabTrap);
+      // Restore focus to previously focused element (WCAG 2.4.3)
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
   }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
@@ -104,7 +113,7 @@ export function Modal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       aria-modal="true"
       role="dialog"
-      aria-labelledby={title ? 'modal-title' : undefined}
+      aria-labelledby={title ? titleId : undefined}
     >
       {/* Backdrop */}
       <div
@@ -127,7 +136,7 @@ export function Modal({
         {title && (
           <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
             <h2
-              id="modal-title"
+              id={titleId}
               className="text-lg font-semibold text-slate-800"
             >
               {title}
