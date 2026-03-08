@@ -114,7 +114,7 @@ describe("DELETE /api/account", () => {
     expect(mockDeleteUser).toHaveBeenCalledWith("user-123");
   });
 
-  // TC: Deletion failure → 500
+  // TC: Deletion failure (throw) → 500
   it("admin.from throws an error → 500 Internal Server Error", async () => {
     mockAdminFrom.mockImplementationOnce(() => {
       throw new Error("Database error");
@@ -125,5 +125,32 @@ describe("DELETE /api/account", () => {
     expect(response.status).toBe(500);
     const body = await response.json();
     expect(body).toHaveProperty("error");
+  });
+
+  // TC: Per-table deletion error → 500 with table name
+  it("table deletion returns error → 500 with descriptive message", async () => {
+    mockAdminEq.mockResolvedValueOnce({
+      error: { message: "FK constraint violation" },
+    });
+
+    const response = await DELETE();
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toMatch(/Failed to delete/);
+  });
+
+  // TC: Auth user deletion error → 500
+  it("auth.admin.deleteUser returns error → 500", async () => {
+    mockDeleteUser.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Auth deletion failed" },
+    });
+
+    const response = await DELETE();
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toMatch(/Failed to delete auth user/);
   });
 });
