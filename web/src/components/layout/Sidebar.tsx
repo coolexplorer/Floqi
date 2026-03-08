@@ -56,6 +56,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
 
   return (
     <aside
+      aria-label="Main navigation"
       className={`
         fixed left-0 top-0 h-screen bg-white border-r border-slate-200
         flex flex-col transition-all duration-normal ease-default
@@ -75,6 +76,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="p-1 rounded-md hover:bg-slate-100 transition-colors"
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!isCollapsed}
         >
           {isCollapsed ? (
             <ChevronRight className="w-4 h-4 text-slate-600" />
@@ -92,6 +94,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
             <input
               type="text"
               placeholder="Search"
+              aria-label="Search navigation"
               className="w-full h-10 pl-10 pr-16 bg-white border border-slate-200 rounded-lg text-body text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-600 transition-colors"
             />
             <kbd className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-slate-100 text-caption text-slate-600 rounded-md border border-slate-200">
@@ -102,7 +105,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2">
+      <nav aria-label="Sidebar navigation" className="flex-1 overflow-y-auto px-3 py-2">
         {/* Home Section */}
         {!isCollapsed && (
           <div className="mb-2">

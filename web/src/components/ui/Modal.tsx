@@ -12,6 +12,7 @@ interface ModalProps {
   onClose: () => void;
   size?: ModalSize;
   title?: string;
+  ariaLabel?: string;
   children: React.ReactNode;
   className?: string;
 }
@@ -27,6 +28,7 @@ export function Modal({
   onClose,
   size = 'md',
   title,
+  ariaLabel,
   children,
   className,
 }: ModalProps) {
@@ -111,9 +113,6 @@ export function Modal({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      aria-modal="true"
-      role="dialog"
-      aria-labelledby={title ? titleId : undefined}
     >
       {/* Backdrop */}
       <div
@@ -125,6 +124,10 @@ export function Modal({
       {/* Dialog panel */}
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : (ariaLabel ?? 'Dialog')}
         tabIndex={-1}
         className={cn(
           'relative w-full rounded-xl bg-white shadow-xl outline-none',

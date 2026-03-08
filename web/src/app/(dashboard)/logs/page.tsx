@@ -195,7 +195,7 @@ export default function LogsPage() {
       <h1 className="text-xl font-semibold text-slate-900">Execution Logs</h1>
 
       {/* Filter Controls */}
-      <div className="flex flex-wrap items-start gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div role="search" aria-label="Filter logs" className="flex flex-wrap items-start gap-4 rounded-xl border border-slate-200 bg-white p-4">
         {/* Automation filter — options use aria-label so their text doesn't
             appear in the DOM alongside log entry text nodes */}
         <div className="flex items-center gap-2">

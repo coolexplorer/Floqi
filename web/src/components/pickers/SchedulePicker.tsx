@@ -138,6 +138,8 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
     customCron: parsed?.customCron ?? '',
   }))
 
+  const presetButtonRefs = React.useRef<(HTMLButtonElement | null)[]>([])
+
   const [cronError, setCronError] = React.useState<string | null>(null)
 
   const cronExpression = buildCron(state)
@@ -155,6 +157,25 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
   function handlePresetChange(preset: string) {
     setCronError(null)
     update({ preset: preset as Preset })
+  }
+
+  function handlePresetKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const total = PRESET_OPTIONS.length
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      nextIndex = (index + 1) % total
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      nextIndex = (index - 1 + total) % total
+    }
+
+    if (nextIndex !== null) {
+      const nextPreset = PRESET_OPTIONS[nextIndex].value
+      handlePresetChange(nextPreset)
+      presetButtonRefs.current[nextIndex]?.focus()
+    }
   }
 
   function handleCustomCronChange(val: string) {
@@ -182,13 +203,16 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
           role="radiogroup"
           aria-label="Schedule frequency"
         >
-          {PRESET_OPTIONS.map((opt) => (
+          {PRESET_OPTIONS.map((opt, index) => (
             <button
               key={opt.value}
+              ref={(el) => { presetButtonRefs.current[index] = el }}
               type="button"
               role="radio"
               aria-checked={state.preset === opt.value}
+              tabIndex={state.preset === opt.value ? 0 : -1}
               onClick={() => handlePresetChange(opt.value)}
+              onKeyDown={(e) => handlePresetKeyDown(e, index)}
               className={cn(
                 'rounded-md py-1.5 text-sm font-medium transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',

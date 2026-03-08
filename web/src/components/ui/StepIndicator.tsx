@@ -55,54 +55,67 @@ export function StepIndicator({ steps, className }: StepIndicatorProps) {
       aria-label="Progress"
       className={cn('flex items-start', className)}
     >
-      {steps.map((step, index) => {
-        const isLast = index === steps.length - 1
-        const connectorStatus =
-          step.status === 'completed' ? 'completed' : 'pending'
+      <ol className="flex w-full items-start">
+        {steps.map((step, index) => {
+          const isLast = index === steps.length - 1
+          const connectorStatus =
+            step.status === 'completed' ? 'completed' : 'pending'
 
-        return (
-          <React.Fragment key={step.label}>
-            <div className="flex flex-col items-center">
-              {/* Step circle */}
-              <div
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200',
-                  stepCircleStyles[step.status]
-                )}
+          return (
+            <React.Fragment key={step.label}>
+              <li
+                className="flex flex-col items-center"
                 aria-current={step.status === 'current' ? 'step' : undefined}
               >
-                {step.status === 'completed' ? (
-                  <CheckIcon />
-                ) : (
-                  <span className="text-sm font-medium">{index + 1}</span>
-                )}
-              </div>
-
-              {/* Step label */}
-              <span
-                className={cn(
-                  'mt-2 text-xs transition-colors duration-200',
-                  stepLabelStyles[step.status]
-                )}
-              >
-                {step.label}
-              </span>
-            </div>
-
-            {/* Connector line */}
-            {!isLast && (
-              <div className="mt-4 flex-1 px-2">
+                {/* Step circle */}
                 <div
                   className={cn(
-                    'h-0.5 w-full transition-colors duration-300',
-                    connectorStyles[connectorStatus]
+                    'flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200',
+                    stepCircleStyles[step.status]
                   )}
-                />
-              </div>
-            )}
-          </React.Fragment>
-        )
-      })}
+                >
+                  {step.status === 'completed' ? (
+                    <CheckIcon />
+                  ) : (
+                    <span className="text-sm font-medium">{index + 1}</span>
+                  )}
+                </div>
+
+                {/* Step label */}
+                <span
+                  className={cn(
+                    'mt-2 text-xs transition-colors duration-200',
+                    stepLabelStyles[step.status]
+                  )}
+                >
+                  {step.label}
+                  {step.status === 'completed' && (
+                    <span className="sr-only"> (completed)</span>
+                  )}
+                  {step.status === 'current' && (
+                    <span className="sr-only"> (current)</span>
+                  )}
+                  {step.status === 'pending' && (
+                    <span className="sr-only"> (pending)</span>
+                  )}
+                </span>
+              </li>
+
+              {/* Connector line */}
+              {!isLast && (
+                <div className="mt-4 flex-1 px-2">
+                  <div
+                    className={cn(
+                      'h-0.5 w-full transition-colors duration-300',
+                      connectorStyles[connectorStatus]
+                    )}
+                  />
+                </div>
+              )}
+            </React.Fragment>
+          )
+        })}
+      </ol>
     </nav>
   )
 }

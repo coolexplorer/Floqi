@@ -92,96 +92,102 @@ export default function DashboardPage() {
     <div>
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Dashboard</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div data-testid="stat-active-automations">
-          <StatCard
-            value={stats?.activeAutomations ?? 0}
-            label="Active Automations"
-            icon={Activity}
-          />
+      <section aria-labelledby="stats-heading">
+        <h2 id="stats-heading" className="sr-only">Overview Stats</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div data-testid="stat-active-automations">
+            <StatCard
+              value={stats?.activeAutomations ?? 0}
+              label="Active Automations"
+              icon={Activity}
+            />
+          </div>
+          <div data-testid="stat-execution-count">
+            <StatCard
+              value={stats?.executionCount ?? 0}
+              label="Executions This Week"
+              icon={Zap}
+            />
+          </div>
+          <div data-testid="stat-tokens-used">
+            <StatCard
+              value={stats ? stats.tokensUsed.toLocaleString() : 0}
+              label="Tokens Used"
+              icon={Database}
+            />
+          </div>
+          <div data-testid="stat-success-rate">
+            <StatCard
+              value={stats ? `${stats.successRate}%` : "0%"}
+              label="Success Rate"
+              icon={CheckCircle}
+            />
+          </div>
         </div>
-        <div data-testid="stat-execution-count">
-          <StatCard
-            value={stats?.executionCount ?? 0}
-            label="Executions This Week"
-            icon={Zap}
-          />
-        </div>
-        <div data-testid="stat-tokens-used">
-          <StatCard
-            value={stats ? stats.tokensUsed.toLocaleString() : 0}
-            label="Tokens Used"
-            icon={Database}
-          />
-        </div>
-        <div data-testid="stat-success-rate">
-          <StatCard
-            value={stats ? `${stats.successRate}%` : "0%"}
-            label="Success Rate"
-            icon={CheckCircle}
-          />
-        </div>
-      </div>
+      </section>
 
       {/* Charts Section */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div data-testid="execution-trend-chart" className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Execution Trend</h3>
-            {(() => {
-              const counts: Record<string, number> = {};
-              stats.recentLogs.forEach((log) => {
-                const date = new Date(log.created_at).toLocaleDateString();
-                counts[date] = (counts[date] || 0) + 1;
-              });
-              const chartData = Object.entries(counts).map(([date, count]) => ({ date, count }));
-              return (
-                <>
-                  <div
-                    role="img"
-                    aria-label="Execution trend chart showing daily execution counts"
-                    className="flex gap-1 items-end h-[200px]"
-                  >
-                    {chartData.map((d) => (
-                      <div
-                        key={d.date}
-                        data-chart-point={d.date}
-                        className="flex-1 bg-blue-500 rounded-t"
-                        style={{ height: `${Math.max(d.count * 40, 20)}px` }}
-                        title={`${d.date}: ${d.count}`}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex gap-1 mt-1">
-                    {chartData.map((d) => (
-                      <span key={d.date} className="flex-1 text-[10px] text-gray-500 text-center truncate">
-                        {d.date}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-          <div data-testid="success-rate-chart" className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Success Rate</h3>
-            <div
-              role="img"
-              aria-label={`Success rate: ${stats.successRate}%`}
-              className="flex items-center justify-center h-[200px]"
-            >
-              <div className="text-center">
-                <span className="text-4xl font-bold text-green-600">{stats.successRate}</span>
-                <span className="text-lg text-gray-500">%</span>
+        <section aria-labelledby="charts-heading" className="mb-8">
+          <h2 id="charts-heading" className="sr-only">Execution Charts</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div data-testid="execution-trend-chart" className="rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Execution Trend</h3>
+              {(() => {
+                const counts: Record<string, number> = {};
+                stats.recentLogs.forEach((log) => {
+                  const date = new Date(log.created_at).toLocaleDateString();
+                  counts[date] = (counts[date] || 0) + 1;
+                });
+                const chartData = Object.entries(counts).map(([date, count]) => ({ date, count }));
+                return (
+                  <>
+                    <div
+                      role="img"
+                      aria-label="Execution trend chart showing daily execution counts"
+                      className="flex gap-1 items-end h-[200px]"
+                    >
+                      {chartData.map((d) => (
+                        <div
+                          key={d.date}
+                          data-chart-point={d.date}
+                          className="flex-1 bg-blue-500 rounded-t"
+                          style={{ height: `${Math.max(d.count * 40, 20)}px` }}
+                          title={`${d.date}: ${d.count}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1 mt-1">
+                      {chartData.map((d) => (
+                        <span key={d.date} className="flex-1 text-[10px] text-gray-500 text-center truncate">
+                          {d.date}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div data-testid="success-rate-chart" className="rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Success Rate</h3>
+              <div
+                role="img"
+                aria-label={`Success rate: ${stats.successRate}%`}
+                className="flex items-center justify-center h-[200px]"
+              >
+                <div className="text-center">
+                  <span className="text-4xl font-bold text-green-600">{stats.successRate}</span>
+                  <span className="text-lg text-gray-500">%</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
+        <section aria-labelledby="recent-automations-heading">
+          <h2 id="recent-automations-heading" className="text-lg font-semibold text-gray-900 mb-3">
             Recent Automations
           </h2>
           <div className="space-y-2">
@@ -195,10 +201,10 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">
+        <section aria-labelledby="recent-executions-heading">
+          <h2 id="recent-executions-heading" className="text-lg font-semibold text-gray-900 mb-3">
             Recent Executions
           </h2>
           <div className="space-y-2">
@@ -214,7 +220,7 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

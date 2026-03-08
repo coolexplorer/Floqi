@@ -294,8 +294,8 @@ export default function AutomationDetailPage() {
       </div>
 
       {/* Webhook URL */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-sm font-semibold text-slate-900">Webhook URL</h2>
+      <section aria-labelledby="webhook-url-heading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 id="webhook-url-heading" className="mb-1 text-sm font-semibold text-slate-900">Webhook URL</h2>
         <p className="mb-3 text-xs text-slate-500">
           외부 서비스에서 이 URL로 POST 요청을 보내 자동화를 트리거할 수 있습니다.
           요청에 <code className="font-mono bg-slate-100 px-1 rounded">x-floqi-signature</code> 헤더를 포함해야 합니다.
@@ -328,11 +328,11 @@ export default function AutomationDetailPage() {
             )}
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Execution History */}
-      <div>
-        <h2 className="mb-3 text-base font-semibold text-slate-900">Execution History</h2>
+      <section aria-labelledby="execution-history-heading">
+        <h2 id="execution-history-heading" className="mb-3 text-base font-semibold text-slate-900">Execution History</h2>
 
         {executions.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center">
@@ -423,7 +423,7 @@ export default function AutomationDetailPage() {
             )}
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

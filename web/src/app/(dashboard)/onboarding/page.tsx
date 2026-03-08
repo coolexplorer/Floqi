@@ -62,7 +62,8 @@ export default function OnboardingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     if (!userId) return;
     const supabase = createClient();
     await supabase
@@ -83,7 +84,7 @@ export default function OnboardingPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-900 mb-6">Welcome to Floqi</h1>
 
-      <div className="max-w-lg space-y-4">
+      <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
         <div>
           <label
             htmlFor="timezone"
@@ -127,13 +128,12 @@ export default function OnboardingPage() {
         </div>
 
         <button
-          type="button"
-          onClick={handleSubmit}
+          type="submit"
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           시작하기 (Get Started)
         </button>
-      </div>
+      </form>
     </div>
   );
 }
