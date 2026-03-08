@@ -51,6 +51,16 @@ test.describe('Authentication', () => {
       await page.getByRole('button', { name: 'Sign Up' }).click()
       await expect(page.getByText('Email is required')).toBeVisible()
     })
+
+    test('TC-1011: duplicate email signup shows error', async ({ page }) => {
+      // Use the same email as the global test user
+      await page.goto('/signup')
+      await page.getByLabel('Email').fill('e2e-test@floqi.test')
+      await page.getByLabel(/password/i).fill('TestPassword123!')
+      await page.getByRole('button', { name: 'Sign Up' }).click()
+      // Supabase returns error for duplicate email
+      await expect(page.locator('[id="signup-error"]')).toBeVisible({ timeout: 10000 })
+    })
   })
 
   test.describe('Login', () => {
@@ -133,6 +143,16 @@ test.describe('Authentication', () => {
       await page.goto('/signup')
       await page.getByRole('link', { name: /sign in/i }).click()
       await expect(page).toHaveURL(/\/login/)
+    })
+  })
+
+  test.describe('Auth Redirects', () => {
+    test('TC-1012: authenticated user on landing redirects to dashboard', async ({ page }) => {
+      // This test uses the authenticated storageState
+      await page.goto('/')
+      // Landing page checks auth and redirects to /dashboard
+      await page.waitForURL('**/dashboard', { timeout: 15000 })
+      await expect(page).toHaveURL(/\/dashboard/)
     })
   })
 })

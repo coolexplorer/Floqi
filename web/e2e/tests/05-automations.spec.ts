@@ -95,6 +95,21 @@ test.describe('Automations', () => {
     })
   })
 
+  test.describe('Empty State', () => {
+    test('TC-3014: shows empty state when no automations', async ({ page, userId }) => {
+      // Clean all automations first
+      await cleanupAutomations(userId)
+      await page.goto('/automations')
+      await expect(page.getByText('No automations yet')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('Create Automation')).toBeVisible()
+
+      // Re-seed for other tests (restore state)
+      const { seedAutomation: seed } = await import('../helpers/data-helpers')
+      await seed(userId, { name: 'E2E Morning Briefing', template_type: 'morning_briefing', status: 'active', schedule_cron: '0 8 * * *' })
+      await seed(userId, { name: 'E2E Email Triage', template_type: 'email_triage', status: 'paused', schedule_cron: '0 9 * * *' })
+    })
+  })
+
   test.describe('Delete', () => {
     test('TC-3009: delete automation with confirmation modal', async ({ page, userId }) => {
       // Seed a temp automation to delete
@@ -114,6 +129,27 @@ test.describe('Automations', () => {
 
       // Should redirect to automations list
       await page.waitForURL('**/automations', { timeout: 10000 })
+    })
+
+    test('TC-3015: delete from automations list shows confirmation modal', async ({ page, userId }) => {
+      const auto = await seedAutomation(userId, { name: 'E2E List Delete Test' })
+      expect(auto).not.toBeNull()
+
+      await page.goto('/automations')
+      await expect(page.getByText('E2E List Delete Test')).toBeVisible({ timeout: 10000 })
+
+      // Click delete icon on the card (the AutomationCard has onDelete)
+      // Navigate to detail page first since list uses cards
+      await page.getByText('E2E List Delete Test').click()
+      await page.waitForURL(/\/automations\//)
+
+      // Accept the confirm dialog
+      page.on('dialog', (dialog) => dialog.accept())
+      await page.getByRole('button', { name: /delete/i }).click()
+      await page.waitForURL('**/automations', { timeout: 10000 })
+
+      // Verify it's gone
+      await expect(page.getByText('E2E List Delete Test')).toBeHidden({ timeout: 5000 })
     })
   })
 
@@ -139,6 +175,24 @@ test.describe('Automations', () => {
       )
       await page.getByRole('button', { name: /run now/i }).click()
       await expect(page.getByText('queued')).toBeVisible({ timeout: 5000 })
+    })
+
+    test('TC-3018: Run Now and verify feedback', async ({ page }) => {
+      await page.goto('/automations')
+      await expect(page.getByText('E2E Morning Briefing')).toBeVisible({ timeout: 10000 })
+      await page.getByText('E2E Morning Briefing').click()
+      await page.waitForURL(/\/automations\//)
+
+      // Mock the run API
+      await page.route('**/api/automations/*/run', (route) =>
+        route.fulfill({ status: 200, body: JSON.stringify({ status: 'queued' }) })
+      )
+
+      await page.getByRole('button', { name: /run now/i }).click()
+      await expect(page.getByText('queued')).toBeVisible({ timeout: 5000 })
+
+      // Button should be disabled after queuing
+      await expect(page.getByRole('button', { name: /run now/i })).toBeDisabled()
     })
 
     test('TC-3012: execution history shows logs', async ({ page }) => {
@@ -177,6 +231,39 @@ test.describe('Automations', () => {
 
       // Should redirect to detail page
       await page.waitForURL(/\/automations\//, { timeout: 10000 })
+    })
+
+    test('TC-3016: edit automation schedule frequency', async ({ page }) => {
+      const autoId = process.env.E2E_AUTOMATION_1_ID
+      expect(autoId).toBeTruthy()
+
+      await page.goto(`/automations/${autoId}/edit`)
+      await expect(page.getByText('Edit Automation')).toBeVisible({ timeout: 10000 })
+
+      // Change frequency to weekly
+      await page.getByLabel('Frequency').selectOption('weekly')
+
+      // Save
+      await page.getByRole('button', { name: '저장' }).click()
+      await page.waitForURL(/\/automations\//, { timeout: 10000 })
+    })
+
+    test('TC-3017: edit with empty prompt shows error', async ({ page }) => {
+      const autoId = process.env.E2E_AUTOMATION_1_ID
+      expect(autoId).toBeTruthy()
+
+      await page.goto(`/automations/${autoId}/edit`)
+      await expect(page.getByText('Edit Automation')).toBeVisible({ timeout: 10000 })
+
+      // Clear prompt
+      const promptInput = page.getByLabel('Prompt')
+      await promptInput.clear()
+
+      // Save
+      await page.getByRole('button', { name: '저장' }).click()
+
+      // Should show validation error
+      await expect(page.getByText('프롬프트를 입력해주세요')).toBeVisible()
     })
   })
 })

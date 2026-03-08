@@ -25,6 +25,15 @@ test.describe('Settings', () => {
       await expect(page.locator('#language')).toBeVisible()
       await expect(page.locator('#timezone')).toBeVisible()
     })
+
+    test('TC-7014: empty name shows validation error', async ({ page }) => {
+      await page.goto('/settings')
+      await page.waitForTimeout(500)
+      const nameInput = page.locator('#display-name')
+      await nameInput.clear()
+      await page.getByRole('button', { name: /save|저장/i }).click()
+      await expect(page.getByText('Name is required')).toBeVisible()
+    })
   })
 
   test.describe('BYOK', () => {
@@ -45,6 +54,13 @@ test.describe('Settings', () => {
       await page.locator('#api-key').fill('invalid-key')
       await page.getByRole('button', { name: /register key|키 등록/i }).click()
       await expect(page.getByText(/유효하지 않은 API 키 형식/)).toBeVisible()
+    })
+
+    test('TC-7015: valid API key saves successfully', async ({ page }) => {
+      await page.goto('/settings')
+      await page.locator('#api-key').fill('sk-ant-test-valid-key')
+      await page.getByRole('button', { name: /register key|키 등록/i }).click()
+      await expect(page.getByText(/저장 완료|saved successfully/i)).toBeVisible({ timeout: 10000 })
     })
   })
 
