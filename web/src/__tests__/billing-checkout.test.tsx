@@ -49,7 +49,7 @@ vi.mock("@/lib/crypto", () => ({
 }));
 
 vi.mock("@/lib/stripe", () => ({
-  stripe: {
+  getStripe: () => ({
     webhooks: {
       constructEvent: vi.fn().mockImplementation((_body: string, sig: string) => {
         if (!sig) throw new Error("Missing signature");
@@ -61,7 +61,7 @@ vi.mock("@/lib/stripe", () => ({
         create: vi.fn().mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
       },
     },
-  },
+  }),
 }));
 
 vi.mock("@supabase/supabase-js", () => ({
