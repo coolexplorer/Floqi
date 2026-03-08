@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,7 @@ export function Modal({
   className,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   // ESC key closes modal
   useEffect(() => {
@@ -54,11 +55,55 @@ export function Modal({
     };
   }, [isOpen]);
 
-  // Focus trap: focus dialog on open
+  // Focus trap: save previous focus, focus first element on open, trap Tab/Shift+Tab, restore on close
   useEffect(() => {
-    if (isOpen && dialogRef.current) {
+    if (!isOpen || !dialogRef.current) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    const FOCUSABLE_SELECTORS =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+    const getFocusable = () =>
+      Array.from(
+        dialogRef.current!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS)
+      ).filter((el) => !el.closest('[aria-hidden="true"]'));
+
+    // Focus first element
+    const focusable = getFocusable();
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    } else {
       dialogRef.current.focus();
     }
+
+    const handleTabTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTabTrap);
+    return () => {
+      document.removeEventListener('keydown', handleTabTrap);
+      // Restore focus to previously focused element (WCAG 2.4.3)
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
   }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;
@@ -68,7 +113,7 @@ export function Modal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       aria-modal="true"
       role="dialog"
-      aria-labelledby={title ? 'modal-title' : undefined}
+      aria-labelledby={title ? titleId : undefined}
     >
       {/* Backdrop */}
       <div
@@ -91,7 +136,7 @@ export function Modal({
         {title && (
           <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
             <h2
-              id="modal-title"
+              id={titleId}
               className="text-lg font-semibold text-slate-800"
             >
               {title}

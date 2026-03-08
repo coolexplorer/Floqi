@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 
+
 export type AutomationStatus = 'all' | 'active' | 'paused' | 'failed'
 
 export interface FilterBarProps {
@@ -53,6 +54,31 @@ export function FilterBar({
   const [showDatePicker, setShowDatePicker] = React.useState(false)
 
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const datePickerRef = React.useRef<HTMLDivElement>(null)
+
+  // Close date picker on click-outside or Escape
+  React.useEffect(() => {
+    if (!showDatePicker) return
+
+    function handleMouseDown(e: MouseEvent) {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false)
+      }
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setShowDatePicker(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showDatePicker])
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value
@@ -129,10 +155,10 @@ export function FilterBar({
       {/* Status filters */}
       <div
         className="flex flex-wrap items-center gap-1.5"
-        role="group"
+        role="radiogroup"
         aria-label="Filter by status"
       >
-        {statusOptions.map((option) => {
+        {statusOptions.map((option, index) => {
           const isActive = activeStatus === option.value
           return (
             <button
@@ -140,7 +166,20 @@ export function FilterBar({
               type="button"
               role="radio"
               aria-checked={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => handleStatusChange(option.value)}
+              onKeyDown={(e) => {
+                const total = statusOptions.length
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  const next = statusOptions[(index + 1) % total]
+                  handleStatusChange(next.value)
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  const prev = statusOptions[(index - 1 + total) % total]
+                  handleStatusChange(prev.value)
+                }
+              }}
               className={cn(
                 'inline-flex h-8 items-center rounded-full border px-3 text-sm font-medium',
                 'transition-colors duration-150',
@@ -155,7 +194,7 @@ export function FilterBar({
       </div>
 
       {/* Date range picker (optional) */}
-      <div className="relative ml-auto">
+      <div className="relative ml-auto" ref={datePickerRef}>
         <Button
           type="button"
           variant={hasDateFilter ? 'outline' : 'secondary'}
@@ -178,7 +217,7 @@ export function FilterBar({
             role="dialog"
             aria-label="Date range picker"
           >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
               Date range
             </p>
             <div className="space-y-2.5">

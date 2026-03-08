@@ -1,23 +1,26 @@
 /**
  * Logout & Middleware Tests — TC-1018, TC-1019
- * TDD Red Phase:
- * - TC-1018 FAILS: DashboardLayout has no logout button yet
- * - TC-1019 tests middleware redirect (middleware already implemented)
  *
  * Tests validate:
- * - Logout button → signOut() called → redirect to /login
+ * - Logout button in SidebarClient → signOut() called → redirect to /login
  * - Unauthenticated user accessing /dashboard → redirected to /login
+ *
+ * Note: DashboardLayout is an async Server Component and cannot be rendered
+ * directly in a Vitest/jsdom environment. The logout button lives in SidebarClient,
+ * which is tested directly here.
  */
 
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextRequest } from "next/server";
-import DashboardLayout from "@/app/(dashboard)/layout";
+import { SidebarClient } from "@/components/layout/SidebarClient";
 import { middleware } from "@/middleware";
 
 const mockPush = vi.fn();
+const mockPathname = vi.fn().mockReturnValue("/dashboard");
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => mockPathname(),
 }));
 
 const mockSignOut = vi.fn();
@@ -43,12 +46,13 @@ describe("Logout", () => {
   });
 
   it("TC-1018: logout button click → signOut() called → redirect to /login", async () => {
-    // Arrange
+    // Arrange — render SidebarClient (contains the logout button)
     mockSignOut.mockResolvedValueOnce({ error: null });
     render(
-      <DashboardLayout>
-        <div>Dashboard Content</div>
-      </DashboardLayout>
+      <SidebarClient
+        userName="Test User"
+        userEmail="test@example.com"
+      />
     );
 
     // Act

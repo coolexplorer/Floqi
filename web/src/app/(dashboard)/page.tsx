@@ -137,7 +137,11 @@ export default function DashboardPage() {
               const chartData = Object.entries(counts).map(([date, count]) => ({ date, count }));
               return (
                 <>
-                  <div className="flex gap-1 items-end h-[200px]">
+                  <div
+                    role="img"
+                    aria-label="Execution trend chart showing daily execution counts"
+                    className="flex gap-1 items-end h-[200px]"
+                  >
                     {chartData.map((d) => (
                       <div
                         key={d.date}
@@ -150,7 +154,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex gap-1 mt-1">
                     {chartData.map((d) => (
-                      <span key={d.date} className="flex-1 text-[10px] text-gray-400 text-center truncate">
+                      <span key={d.date} className="flex-1 text-[10px] text-gray-500 text-center truncate">
                         {d.date}
                       </span>
                     ))}
@@ -161,7 +165,11 @@ export default function DashboardPage() {
           </div>
           <div data-testid="success-rate-chart" className="rounded-lg border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">Success Rate</h3>
-            <div className="flex items-center justify-center h-[200px]">
+            <div
+              role="img"
+              aria-label={`Success rate: ${stats.successRate}%`}
+              className="flex items-center justify-center h-[200px]"
+            >
               <div className="text-center">
                 <span className="text-4xl font-bold text-green-600">{stats.successRate}</span>
                 <span className="text-lg text-gray-500">%</span>

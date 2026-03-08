@@ -205,7 +205,7 @@ export default function AutomationsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-sm text-slate-400">
+      <div role="status" aria-live="polite" className="flex items-center justify-center py-24 text-sm text-slate-500">
         Loading...
       </div>
     )

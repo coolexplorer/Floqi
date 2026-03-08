@@ -77,7 +77,7 @@ export default function OnboardingPage() {
     router.push('/dashboard');
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div role="status" aria-live="polite">Loading...</div>;
 
   return (
     <div>
@@ -129,7 +129,7 @@ export default function OnboardingPage() {
         <button
           type="button"
           onClick={handleSubmit}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           시작하기 (Get Started)
         </button>

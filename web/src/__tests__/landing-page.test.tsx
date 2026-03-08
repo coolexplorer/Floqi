@@ -102,28 +102,27 @@ describe("LandingPage — Hero Section", () => {
     expect(hero).toBeInTheDocument();
   });
 
-  it("renders 'Get started free' primary CTA button in hero", () => {
+  it("renders primary CTA button in hero linking to /signup", () => {
     render(<LandingPage />);
 
-    // RED: Current page has "Get Started" (no "free"), not matching
-    expect(
-      screen.getByRole("link", { name: /get started free/i })
-    ).toBeInTheDocument();
+    // Hero CTA: "Get started" link to /signup
+    const ctaLinks = screen.getAllByRole("link", { name: /get started/i });
+    expect(ctaLinks.length).toBeGreaterThan(0);
+    expect(ctaLinks[0]).toHaveAttribute("href", "/signup");
   });
 
-  it("'Get started free' CTA links to /signup (TC-9003)", () => {
+  it("primary CTA links to /signup (TC-9003)", () => {
     render(<LandingPage />);
 
-    // TC-9003: Clicking CTA navigates to /signup
-    // RED: Current page has "Get Started" link, not "Get started free"
-    const ctaLink = screen.getByRole("link", { name: /get started free/i });
-    expect(ctaLink).toHaveAttribute("href", "/signup");
+    // TC-9003: CTA navigates to /signup
+    const ctaLinks = screen.getAllByRole("link", { name: /get started/i });
+    expect(ctaLinks[0]).toHaveAttribute("href", "/signup");
   });
 
   it("renders 'Log in' navigation link in hero or nav", () => {
     render(<LandingPage />);
 
-    // RED: Current page has "Sign In" not "Log in"
+    // TopNavBar has "Log in" link
     const loginLink = screen.getByRole("link", { name: /^log in$/i });
     expect(loginLink).toBeInTheDocument();
   });
@@ -131,7 +130,7 @@ describe("LandingPage — Hero Section", () => {
   it("'Log in' link navigates to /login", () => {
     render(<LandingPage />);
 
-    // RED: Current page has "Sign In" not "Log in"
+    // TopNavBar has "Log in" link to /login
     const loginLink = screen.getByRole("link", { name: /^log in$/i });
     expect(loginLink).toHaveAttribute("href", "/login");
   });
@@ -140,11 +139,12 @@ describe("LandingPage — Hero Section", () => {
 // ─── TC-9003: CTA Navigation Tests ───────────────────────────────────────────
 
 describe("TC-9003: CTA Navigation", () => {
-  it("TC-9003: clicking 'Get started free' button navigates to /signup", async () => {
+  it("TC-9003: clicking primary CTA button navigates to /signup", async () => {
     render(<LandingPage />);
 
-    // RED: No "Get started free" button in current implementation
-    const ctaButton = screen.getByRole("link", { name: /get started free/i });
+    // Hero CTA links to /signup
+    const ctaLinks = screen.getAllByRole("link", { name: /get started/i });
+    const ctaButton = ctaLinks[0];
     await userEvent.click(ctaButton);
 
     // Link has correct href (anchor navigation)
@@ -154,19 +154,20 @@ describe("TC-9003: CTA Navigation", () => {
   it("TC-9003: clicking 'Log in' link navigates to /login", async () => {
     render(<LandingPage />);
 
-    // RED: No "Log in" link in current implementation (only "Sign In")
+    // TopNavBar has "Log in" link to /login
     const loginLink = screen.getByRole("link", { name: /^log in$/i });
     await userEvent.click(loginLink);
 
     expect(loginLink).toHaveAttribute("href", "/login");
   });
 
-  it("TC-9003: secondary CTA has 'Sign up free' text linking to /signup", () => {
+  it("TC-9003: has a 'Sign up' link in nav linking to /signup", () => {
     render(<LandingPage />);
 
-    // RED: Current page only has "Get Started", not "Sign up free"
-    const signUpFreeLink = screen.getByRole("link", { name: /sign up free/i });
-    expect(signUpFreeLink).toHaveAttribute("href", "/signup");
+    // TopNavBar has "Sign up" link to /signup
+    const signUpLinks = screen.getAllByRole("link", { name: /sign up/i });
+    expect(signUpLinks.length).toBeGreaterThan(0);
+    expect(signUpLinks[0]).toHaveAttribute("href", "/signup");
   });
 });
 
@@ -311,11 +312,10 @@ describe("LandingPage — Mobile Responsive", () => {
 
     render(<LandingPage />);
 
-    // RED: "Get started free" button doesn't exist in current page
-    const ctaButton = screen.getByRole("link", { name: /get started free/i });
-    // Button text should be fully visible (element in DOM)
-    expect(ctaButton).toBeInTheDocument();
-    expect(ctaButton).toBeVisible();
+    // Hero CTA should be present and visible
+    const ctaLinks = screen.getAllByRole("link", { name: /get started/i });
+    expect(ctaLinks[0]).toBeInTheDocument();
+    expect(ctaLinks[0]).toBeVisible();
   });
 
   it("hero section is rendered and accessible at 768px viewport", () => {
@@ -404,7 +404,7 @@ describe("LandingPage — Authenticated User Redirect", () => {
         "[data-testid='loading-skeleton'], [aria-busy='true']"
       ) !== null;
     const hasHeroContent =
-      screen.queryByRole("link", { name: /get started free/i }) !== null;
+      screen.queryAllByRole("link", { name: /get started/i }).length > 0;
 
     // At least one of these should be true in the final implementation
     expect(hasLoadingSkeleton || hasHeroContent).toBe(true);

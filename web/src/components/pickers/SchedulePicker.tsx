@@ -176,7 +176,7 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
     <div className={cn('space-y-4', className)}>
       {/* Preset selector */}
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Frequency</label>
+        <p className="mb-1.5 block text-sm font-medium text-slate-700">Frequency</p>
         <div
           className="grid grid-cols-4 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1"
           role="radiogroup"
@@ -207,26 +207,26 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
       {state.preset !== 'custom' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+            <label htmlFor="schedule-hour" className="mb-1.5 block text-sm font-medium text-slate-700">
               <Clock className="mr-1 inline h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
               Hour
             </label>
             <Select
+              id="schedule-hour"
               options={HOUR_OPTIONS}
               value={state.hour}
               onChange={(v) => update({ hour: v })}
               placeholder="Hour"
-              aria-label="Hour"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Minute</label>
+            <label htmlFor="schedule-minute" className="mb-1.5 block text-sm font-medium text-slate-700">Minute</label>
             <Select
+              id="schedule-minute"
               options={MINUTE_OPTIONS}
               value={state.minute}
               onChange={(v) => update({ minute: v })}
               placeholder="Minute"
-              aria-label="Minute"
             />
           </div>
         </div>
@@ -235,13 +235,13 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
       {/* Day of week (weekly only) */}
       {state.preset === 'weekly' && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Day of week</label>
+          <label htmlFor="schedule-day-of-week" className="mb-1.5 block text-sm font-medium text-slate-700">Day of week</label>
           <Select
+            id="schedule-day-of-week"
             options={DAY_OF_WEEK_OPTIONS}
             value={state.dayOfWeek}
             onChange={(v) => update({ dayOfWeek: v })}
             placeholder="Select day"
-            aria-label="Day of week"
           />
         </div>
       )}
@@ -249,13 +249,13 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
       {/* Day of month (monthly only) */}
       {state.preset === 'monthly' && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Day of month</label>
+          <label htmlFor="schedule-day-of-month" className="mb-1.5 block text-sm font-medium text-slate-700">Day of month</label>
           <Select
+            id="schedule-day-of-month"
             options={DAY_OF_MONTH_OPTIONS}
             value={state.dayOfMonth}
             onChange={(v) => update({ dayOfMonth: v })}
             placeholder="Select day"
-            aria-label="Day of month"
           />
         </div>
       )}
@@ -263,10 +263,11 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
       {/* Custom cron input */}
       {state.preset === 'custom' && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label htmlFor="schedule-custom-cron" className="mb-1.5 block text-sm font-medium text-slate-700">
             Cron expression
           </label>
           <Input
+            id="schedule-custom-cron"
             type="text"
             value={state.customCron}
             onChange={(e) => handleCustomCronChange(e.target.value)}
@@ -281,27 +282,27 @@ export function SchedulePicker({ value, onChange, onTimezoneChange, className }:
               {cronError}
             </p>
           ) : (
-            <p className="mt-1 text-xs text-slate-400">Format: minute hour day month weekday</p>
+            <p className="mt-1 text-xs text-slate-500">Format: minute hour day month weekday</p>
           )}
         </div>
       )}
 
       {/* Timezone */}
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Timezone</label>
+        <label htmlFor="schedule-timezone" className="mb-1.5 block text-sm font-medium text-slate-700">Timezone</label>
         <Select
+          id="schedule-timezone"
           options={TIMEZONE_OPTIONS}
           value={state.timezone}
           onChange={(v) => update({ timezone: v })}
           placeholder="Select timezone"
           searchable
-          aria-label="Timezone"
         />
       </div>
 
       {/* Cron preview */}
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">
           Schedule preview
         </p>
         <p className="text-sm font-medium text-slate-900">

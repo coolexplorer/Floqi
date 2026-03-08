@@ -64,7 +64,7 @@ export default function LandingPage() {
               >
                 <span>Get started</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
+                <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </div>

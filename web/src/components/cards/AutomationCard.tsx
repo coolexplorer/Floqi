@@ -79,11 +79,11 @@ export function AutomationCard({
       {/* Meta */}
       <div className="flex gap-4 text-xs text-slate-500">
         <div>
-          <span className="block text-slate-400">마지막 실행</span>
+          <span className="block text-slate-500">마지막 실행</span>
           <span>{formatRunTime(lastRun)}</span>
         </div>
         <div>
-          <span className="block text-slate-400">다음 실행</span>
+          <span className="block text-slate-500">다음 실행</span>
           <span>{formatRunTime(nextRun)}</span>
         </div>
       </div>

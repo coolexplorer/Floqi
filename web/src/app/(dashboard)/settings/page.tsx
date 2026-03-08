@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { encrypt } from '@/lib/crypto';
+import { Modal } from '@/components/ui/Modal';
 
 const TIMEZONES = [
   'UTC',
@@ -81,7 +82,7 @@ export default function SettingsPage() {
           .select('value')
           .eq('user_id', user.id)
           .eq('key', 'news_categories')
-          .single();
+          .maybeSingle();
 
         if (newsCatPref?.value) {
           setNewsCategories(newsCatPref.value as string[]);
@@ -96,7 +97,7 @@ export default function SettingsPage() {
           .select('value')
           .eq('user_id', user.id)
           .eq('key', 'importance_criteria')
-          .single();
+          .maybeSingle();
 
         if (criteriaPref?.value) {
           setImportanceCriteria(criteriaPref.value as string);
@@ -110,7 +111,7 @@ export default function SettingsPage() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (data) {
         setDisplayName(data.display_name ?? '');
@@ -230,337 +231,396 @@ export default function SettingsPage() {
     );
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div role="status" aria-live="polite">Loading...</div>;
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-slate-900 mb-6">Settings</h1>
+    <div className="max-w-2xl">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Here&apos;s a quick summary of your profile and settings.
+        </p>
+      </div>
 
-      <div className="max-w-lg space-y-8">
-        {/* Profile Section */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium text-slate-800">Profile</h2>
-
-          <div>
-            <label
-              htmlFor="display-name"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Name (이름)
-            </label>
-            <input
-              id="display-name"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            />
-            {nameError && (
-              <p className="mt-1 text-xs text-red-600">{nameError}</p>
-            )}
+      <div className="space-y-4">
+        {/* Data Profile card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">Data Profile</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Update your name and personal details.</p>
           </div>
 
-          <div>
-            <label
-              htmlFor="timezone"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Timezone (타임존)
-            </label>
-            <select
-              id="timezone"
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>
-                  {tz}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="display-name"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Name (이름)
+              </label>
+              <input
+                id="display-name"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+              {nameError && (
+                <p className="mt-1 text-xs text-red-600">{nameError}</p>
+              )}
+            </div>
 
-          <div>
-            <label
-              htmlFor="language"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Language (언어)
-            </label>
-            <select
-              id="language"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              {LANGUAGES.map((lang) => (
-                <option key={lang.value} value={lang.value}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
+            <div>
+              <dl>
+                <dt className="mb-1 block text-sm font-medium text-slate-700">Email</dt>
+                <dd className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">
+                  —
+                </dd>
+              </dl>
+            </div>
           </div>
         </section>
 
-        {/* BYOK Section */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium text-slate-800">API Key (BYOK)</h2>
-
-          <div>
-            <label
-              htmlFor="api-key"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              API Key (API 키)
-            </label>
-            <input
-              id="api-key"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..."
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            />
-            {byokError && (
-              <p className="mt-1 text-xs text-red-600">{byokError}</p>
-            )}
+        {/* Language & Region card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">Language &amp; Region</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Set your preferred language and timezone.</p>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleSaveApiKey}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Register Key (키 등록)
-            </button>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="language"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Language (언어)
+              </label>
+              <select
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {llmProvider === 'byok' && (
+            <div>
+              <label
+                htmlFor="timezone"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Timezone (타임존)
+              </label>
+              <select
+                id="timezone"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                {TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {/* BYOK card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">API Key (BYOK)</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Bring your own Anthropic API key to use your own quota.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor="api-key"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                API Key (API 키)
+              </label>
+              <input
+                id="api-key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+              {byokError && (
+                <p className="mt-1 text-xs text-red-600">{byokError}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setShowSwitchModal(true)}
-                className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                onClick={handleSaveApiKey}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                Managed 모드로 전환 (Switch to Managed)
+                Register Key (키 등록)
               </button>
+
+              {llmProvider === 'byok' && (
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchModal(true)}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Managed 모드로 전환 (Switch to Managed)
+                </button>
+              )}
+            </div>
+
+            {byokStatus === 'success' && (
+              <p className="text-sm text-green-600">API key saved successfully (저장 완료)</p>
             )}
           </div>
 
-          {byokStatus === 'success' && (
-            <p className="text-sm text-green-600">API key saved successfully (저장 완료)</p>
-          )}
-
           {/* Switch to Managed Modal */}
-          {showSwitchModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 max-w-sm mx-4 space-y-4">
-                <p className="text-sm text-slate-700">
-                  Switching to Managed mode will delete your API key. Do you want to proceed?
-                </p>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowSwitchModal(false)}
-                    className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSwitchToManaged}
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                  >
-                    Confirm
-                  </button>
-                </div>
-              </div>
+          <Modal
+            isOpen={showSwitchModal}
+            onClose={() => setShowSwitchModal(false)}
+            title="Switch to Managed"
+            size="sm"
+          >
+            <p className="text-sm text-slate-700">
+              Switching to Managed mode will delete your API key. Do you want to proceed?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSwitchModal(false)}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSwitchToManaged}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                Confirm
+              </button>
             </div>
-          )}
+          </Modal>
         </section>
 
-        {/* Preferences Section */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium text-slate-800">Preferences (선호도)</h2>
+        {/* Preferences card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">Preferences (선호도)</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Customize your news and email notification preferences.
+            </p>
+          </div>
 
-          {/* News Categories */}
-          <fieldset>
-            <legend className="text-sm font-medium text-slate-700 mb-2">
-              News Categories (뉴스 카테고리)
-            </legend>
-            <div className="space-y-2">
-              {NEWS_CATEGORIES.map((cat) => (
-                <label key={cat.value} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={newsCategories.includes(cat.value)}
-                    onChange={() => handleCategoryToggle(cat.value)}
-                    className="rounded border-slate-300"
-                  />
-                  {cat.label}
-                </label>
-              ))}
+          <div className="space-y-4">
+            {/* News Categories */}
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium text-slate-700">
+                News Categories (뉴스 카테고리)
+              </legend>
+              <div className="space-y-2">
+                {NEWS_CATEGORIES.map((cat) => (
+                  <label key={cat.value} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={newsCategories.includes(cat.value)}
+                      onChange={() => handleCategoryToggle(cat.value)}
+                      className="rounded border-slate-300"
+                    />
+                    {cat.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {/* Email Importance Criteria */}
+            <div>
+              <label
+                htmlFor="importance-criteria"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Email Importance Criteria (이메일 중요도 기준)
+              </label>
+              <select
+                id="importance-criteria"
+                value={importanceCriteria}
+                onChange={(e) => setImportanceCriteria(e.target.value)}
+                className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="sender">발신자</option>
+                <option value="subject_keyword">제목 키워드</option>
+                <option value="all">전체</option>
+              </select>
             </div>
-          </fieldset>
-
-          {/* Email Importance Criteria */}
-          <div>
-            <label
-              htmlFor="importance-criteria"
-              className="block text-sm font-medium text-slate-700 mb-1"
-            >
-              Email Importance Criteria (이메일 중요도 기준)
-            </label>
-            <select
-              id="importance-criteria"
-              value={importanceCriteria}
-              onChange={(e) => setImportanceCriteria(e.target.value)}
-              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
-            >
-              <option value="sender">발신자</option>
-              <option value="subject_keyword">제목 키워드</option>
-              <option value="all">전체</option>
-            </select>
           </div>
         </section>
 
-        {/* Billing Section */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium text-slate-800">Billing</h2>
+        {/* Billing card */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Billing
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-500">Manage your subscription and billing.</p>
+          </div>
 
-          <p className="text-sm text-slate-700">
-            Current Plan: {plan === 'pro' ? 'Pro' : 'Free'}
-          </p>
-          <p className="text-sm text-slate-500">
-            {plan === 'pro' ? '500' : '30'} executions/month
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-700">
+              Current Plan: {plan === 'pro' ? 'Pro' : 'Free'}
+            </p>
+            <p className="text-sm text-slate-500">
+              {plan === 'pro' ? '500' : '30'} executions/month
+            </p>
 
-          {plan === 'free' ? (
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={async () => {
-                setBillingError('');
-                setIsUpgrading(true);
-                try {
-                  const res = await fetch('/api/billing/checkout', { method: 'POST' });
-                  const data = await res.json();
-                  if (!res.ok) {
-                    setBillingError(data.error || 'Payment failed');
-                    return;
+            {plan === 'free' ? (
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={async () => {
+                  setBillingError('');
+                  setIsUpgrading(true);
+                  try {
+                    const res = await fetch('/api/billing/checkout', { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setBillingError(data.error || 'Payment failed');
+                      return;
+                    }
+                    window.location.href = data.url;
+                  } catch {
+                    setBillingError('Payment failed');
+                  } finally {
+                    setIsUpgrading(false);
                   }
-                  window.location.href = data.url;
-                } catch {
-                  setBillingError('Payment failed');
-                } finally {
-                  setIsUpgrading(false);
-                }
-              }}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Upgrade to Pro
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={async () => {
-                setBillingError('');
-                try {
-                  const res = await fetch('/api/billing/portal', { method: 'POST' });
-                  const data = await res.json();
-                  if (!res.ok) {
-                    setBillingError(data.error || 'Failed to open billing portal');
-                    return;
+                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Upgrade to Pro
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={async () => {
+                  setBillingError('');
+                  try {
+                    const res = await fetch('/api/billing/portal', { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setBillingError(data.error || 'Failed to open billing portal');
+                      return;
+                    }
+                    window.location.href = data.url;
+                  } catch {
+                    setBillingError('Failed to open billing portal');
                   }
-                  window.location.href = data.url;
-                } catch {
-                  setBillingError('Failed to open billing portal');
-                }
-              }}
-              className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
-            >
-              Manage Plan
-            </button>
-          )}
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Manage Plan
+              </button>
+            )}
 
-          {billingError && (
-            <p className="text-sm text-red-600">{billingError}</p>
-          )}
+            {billingError && (
+              <p className="text-sm text-red-600">{billingError}</p>
+            )}
+          </div>
         </section>
 
-        {/* Danger Zone — Account Deletion */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium text-red-800">Danger Zone</h2>
+        {/* Danger Zone card */}
+        <section className="rounded-xl border border-red-200 bg-red-50/50 p-5">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-red-700">Danger zone</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Proceed with caution.</p>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowDeleteModal(true)}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
           >
             Delete Account
           </button>
+
           {deleteError && (
-            <p className="text-sm text-red-600">{deleteError}</p>
+            <p className="mt-2 text-sm text-red-600">{deleteError}</p>
           )}
 
-          {showDeleteModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 max-w-sm mx-4 space-y-4">
-                <p className="text-sm text-slate-700">
-                  Are you sure? This action cannot be undone. All your data will be permanently deleted.
-                </p>
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteModal(false)}
-                    className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setDeleteError('');
-                      try {
-                        const res = await fetch('/api/account', { method: 'DELETE' });
-                        if (!res.ok) {
-                          const data = await res.json();
-                          setDeleteError(data.error || 'Failed to delete account');
-                          setShowDeleteModal(false);
-                          return;
-                        }
-                        router.push('/login');
-                      } catch {
-                        setDeleteError('Failed to delete account');
-                        setShowDeleteModal(false);
-                      }
-                    }}
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                  >
-                    Confirm
-                  </button>
-                </div>
-              </div>
+          <Modal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            title="Are you sure?"
+            size="sm"
+          >
+            <p className="text-sm text-slate-700">
+              Are you sure? This action cannot be undone. All your data will be permanently deleted.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setDeleteError('');
+                  try {
+                    const res = await fetch('/api/account', { method: 'DELETE' });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      setDeleteError(data.error || 'Failed to delete account');
+                      setShowDeleteModal(false);
+                      return;
+                    }
+                    router.push('/login');
+                  } catch {
+                    setDeleteError('Failed to delete account');
+                    setShowDeleteModal(false);
+                  }
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                Confirm
+              </button>
             </div>
-          )}
+          </Modal>
         </section>
 
-        {/* Unified Save Button */}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSaving ? 'Saving...' : 'Save (저장)'}
-        </button>
+        {/* Unified Save Button + status messages */}
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : 'Save (저장)'}
+          </button>
 
-        {/* Status messages */}
-        {status === 'success' && (
-          <p className="text-sm text-green-600">Saved successfully (저장 완료)</p>
-        )}
-        {status === 'error' && (
-          <p className="text-sm text-red-600">Error: Failed to save (저장 실패)</p>
-        )}
+          {status === 'success' && (
+            <p className="text-sm text-green-600">Saved successfully (저장 완료)</p>
+          )}
+          {status === 'error' && (
+            <p className="text-sm text-red-600">Error: Failed to save (저장 실패)</p>
+          )}
+        </div>
       </div>
     </div>
   );

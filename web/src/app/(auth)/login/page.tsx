@@ -34,7 +34,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    window.location.href = '/dashboard'
   }
 
   async function handleGoogleLogin() {
@@ -106,7 +106,7 @@ export default function LoginPage() {
 
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs uppercase tracking-wide text-slate-400">or</span>
+            <span className="text-xs uppercase tracking-wide text-slate-500">or</span>
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
