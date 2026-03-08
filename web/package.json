@@ -9,13 +9,18 @@
     "lint": "eslint src/",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "npx playwright test",
+    "e2e:ui": "npx playwright test --ui",
+    "e2e:debug": "npx playwright test --debug",
+    "e2e:report": "npx playwright show-report"
   },
   "dependencies": {
     "@eslint/eslintrc": "^3.3.4",
     "@stripe/stripe-js": "^8.9.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
+    "agentation": "^2.3.0",
     "clsx": "^2.1.1",
     "google-auth-library": "^9.15.1",
     "lucide-react": "^0.475.0",
@@ -27,6 +32,7 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.0.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
