@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { encrypt } from '@/lib/crypto';
 
@@ -31,6 +32,7 @@ const NEWS_CATEGORIES = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [timezone, setTimezone] = useState('UTC');
@@ -51,6 +53,10 @@ export default function SettingsPage() {
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
   const [billingError, setBillingError] = useState('');
   const [isUpgrading, setIsUpgrading] = useState(false);
+
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Preferences state
   const [newsCategories, setNewsCategories] = useState<string[]>([]);
@@ -457,6 +463,20 @@ export default function SettingsPage() {
           ) : (
             <button
               type="button"
+              onClick={async () => {
+                setBillingError('');
+                try {
+                  const res = await fetch('/api/billing/portal', { method: 'POST' });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setBillingError(data.error || 'Failed to open billing portal');
+                    return;
+                  }
+                  window.location.href = data.url;
+                } catch {
+                  setBillingError('Failed to open billing portal');
+                }
+              }}
               className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
             >
               Manage Plan
@@ -465,6 +485,62 @@ export default function SettingsPage() {
 
           {billingError && (
             <p className="text-sm text-red-600">{billingError}</p>
+          )}
+        </section>
+
+        {/* Danger Zone — Account Deletion */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-medium text-red-800">Danger Zone</h2>
+          <button
+            type="button"
+            onClick={() => setShowDeleteModal(true)}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Delete Account
+          </button>
+          {deleteError && (
+            <p className="text-sm text-red-600">{deleteError}</p>
+          )}
+
+          {showDeleteModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-sm mx-4 space-y-4">
+                <p className="text-sm text-slate-700">
+                  Are you sure? This action cannot be undone. All your data will be permanently deleted.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(false)}
+                    className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setDeleteError('');
+                      try {
+                        const res = await fetch('/api/account', { method: 'DELETE' });
+                        if (!res.ok) {
+                          const data = await res.json();
+                          setDeleteError(data.error || 'Failed to delete account');
+                          setShowDeleteModal(false);
+                          return;
+                        }
+                        router.push('/login');
+                      } catch {
+                        setDeleteError('Failed to delete account');
+                        setShowDeleteModal(false);
+                      }
+                    }}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </section>
 
