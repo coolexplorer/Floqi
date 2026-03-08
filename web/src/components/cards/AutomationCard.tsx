@@ -111,6 +111,7 @@ export function AutomationCard({
           }
           onClick={handleToggle}
           aria-label={status === 'active' ? `${name} 일시정지` : `${name} 재개`}
+          aria-pressed={status === 'paused'}
           disabled={status === 'error'}
         />
         <Button

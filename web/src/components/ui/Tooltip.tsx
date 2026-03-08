@@ -106,18 +106,19 @@ export function Tooltip({
         )
       : null;
 
+  const child = React.Children.only(children) as React.ReactElement<React.HTMLAttributes<HTMLElement>>;
+  const enhancedChild = React.cloneElement(child, {
+    'aria-describedby': visible ? tooltipId : undefined,
+    onMouseEnter: show,
+    onMouseLeave: hide,
+    onFocus: show,
+    onBlur: hide,
+  });
+
   return (
     <>
-      <span
-        ref={wrapperRef}
-        className="inline-flex"
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        onFocus={show}
-        onBlur={hide}
-        aria-describedby={visible ? tooltipId : undefined}
-      >
-        {children}
+      <span ref={wrapperRef} className="relative inline-flex">
+        {enhancedChild}
       </span>
       {tooltip}
     </>

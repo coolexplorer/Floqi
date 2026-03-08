@@ -87,9 +87,15 @@ export function Wizard({
       {/* Step indicator */}
       <StepIndicator steps={indicatorSteps} currentStep={currentStep} />
 
+      {/* Live region for step change announcements */}
+      <div role="status" aria-live="polite" className="sr-only">
+        Step {currentStep + 1} of {steps.length}: {currentStepData?.label}
+      </div>
+
       {/* Step content */}
       <section
         aria-label={`Step ${currentStep + 1}: ${currentStepData?.label}`}
+        aria-busy={busy ? 'true' : undefined}
         className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
       >
         {currentStepData?.content}

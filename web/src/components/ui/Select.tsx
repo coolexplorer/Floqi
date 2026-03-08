@@ -156,6 +156,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-controls={listboxId}
+            aria-activedescendant={open && focusedIndex >= 0 ? `${listboxId}-opt-${focusedIndex}` : undefined}
             aria-invalid={error}
             aria-describedby={errorMessage ? errorId : undefined}
             disabled={disabled}
@@ -223,11 +224,12 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 className="max-h-60 overflow-auto py-1"
               >
                 {filtered.length === 0 ? (
-                  <li className="px-3 py-2 text-sm text-slate-400">No options found</li>
+                  <li role="option" aria-disabled="true" aria-selected="false" className="px-3 py-2 text-sm text-slate-400">No options found</li>
                 ) : (
                   filtered.map((opt, idx) => (
                     <li
                       key={opt.value}
+                      id={`${listboxId}-opt-${idx}`}
                       ref={(el) => {
                         optionRefs.current[idx] = el
                       }}
