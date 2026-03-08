@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Sun, Mail, BookOpen, Zap, ArrowLeft, Pencil, Trash2, Play, Pause, Copy, Check } from 'lucide-react'
+import { Sun, Mail, BookOpen, Zap, ArrowLeft, Pencil, Trash2, Play, Pause, Copy, Check, XCircle } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
@@ -24,10 +24,18 @@ interface AutomationDetail {
 
 interface ExecutionLog {
   id: string
-  status: 'success' | 'error' | 'running' | 'pending'
-  duration_ms: number | null
+  status: 'success' | 'error' | 'running' | 'pending' | 'cancelled'
+  started_at: string | null
+  completed_at: string | null
   created_at: string
   tool_calls: ToolCall[] | null
+}
+
+function computeDurationMs(log: ExecutionLog): number | null {
+  if (log.started_at && log.completed_at) {
+    return new Date(log.completed_at).getTime() - new Date(log.started_at).getTime()
+  }
+  return null
 }
 
 const templateIconMap: Record<string, LucideIcon> = {
@@ -70,6 +78,7 @@ export default function AutomationDetailPage() {
   const [runFeedback, setRunFeedback] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'success' | 'error'>('all')
   const [webhookCopied, setWebhookCopied] = React.useState(false)
+  const [cancelling, setCancelling] = React.useState(false)
   const [isDeleteConfirming, setIsDeleteConfirming] = React.useState(false)
 
   React.useEffect(() => {
@@ -91,7 +100,7 @@ export default function AutomationDetailPage() {
 
       const { data: logs } = await supabase
         .from('execution_logs')
-        .select('id, status, duration_ms, created_at, tool_calls')
+        .select('id, status, started_at, completed_at, created_at, tool_calls')
         .eq('automation_id', id)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -106,9 +115,22 @@ export default function AutomationDetailPage() {
     if (!automation) return
     setToggling(true)
     const newStatus = automation.status === 'active' ? 'paused' : 'active'
-    const supabase = createClient()
-    await supabase.from('automations').update({ status: newStatus }).eq('id', id)
-    setAutomation((prev) => (prev ? { ...prev, status: newStatus } : prev))
+    try {
+      const res = await fetch(`/api/automations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setAutomation((prev) => prev ? { ...prev, status: data.status, next_run_at: data.next_run_at } : prev)
+      }
+    } catch {
+      // fallback: direct update without next_run_at
+      const supabase = createClient()
+      await supabase.from('automations').update({ status: newStatus }).eq('id', id)
+      setAutomation((prev) => (prev ? { ...prev, status: newStatus } : prev))
+    }
     setToggling(false)
   }
 
@@ -135,6 +157,27 @@ export default function AutomationDetailPage() {
     const supabase = createClient()
     await supabase.from('automations').delete().eq('id', id)
     router.push('/automations')
+  }
+
+  const hasRunningExecution = executions.some((e) => e.status === 'running')
+
+  async function handleCancel() {
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/automations/${id}/cancel`, { method: 'POST' })
+      if (res.ok) {
+        setExecutions((prev) =>
+          prev.map((e) =>
+            e.status === 'running'
+              ? { ...e, status: 'cancelled' as const, completed_at: new Date().toISOString() }
+              : e
+          )
+        )
+      }
+    } catch {
+      // silently fail
+    }
+    setCancelling(false)
   }
 
   async function handleCopyWebhookUrl() {
@@ -253,6 +296,18 @@ export default function AutomationDetailPage() {
           >
             Run Now
           </Button>
+          {hasRunningExecution && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<XCircle className="h-3.5 w-3.5 text-red-500" />}
+              onClick={handleCancel}
+              loading={cancelling}
+              className="text-red-600"
+            >
+              Cancel
+            </Button>
+          )}
           {runFeedback && (
             <span className="text-xs text-green-600">{runFeedback}</span>
           )}
@@ -392,6 +447,8 @@ export default function AutomationDetailPage() {
                         ? 'error'
                         : exec.status === 'running'
                         ? 'info'
+                        : exec.status === 'cancelled'
+                        ? 'warning'
                         : 'neutral'
                     }
                     size="sm"
@@ -401,13 +458,14 @@ export default function AutomationDetailPage() {
                   <span className="flex-1 font-mono text-xs text-slate-500">
                     {formatDate(exec.created_at)}
                   </span>
-                  {exec.duration_ms != null && (
-                    <span className="text-xs text-slate-400">
-                      {exec.duration_ms < 1000
-                        ? `${exec.duration_ms}ms`
-                        : `${(exec.duration_ms / 1000).toFixed(1)}s`}
-                    </span>
-                  )}
+                  {(() => {
+                    const dur = computeDurationMs(exec)
+                    return dur != null ? (
+                      <span className="text-xs text-slate-400">
+                        {dur < 1000 ? `${dur}ms` : `${(dur / 1000).toFixed(1)}s`}
+                      </span>
+                    ) : null
+                  })()}
                 </button>
               ))}
             </div>

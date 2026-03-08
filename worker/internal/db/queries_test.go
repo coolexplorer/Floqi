@@ -59,7 +59,7 @@ type CronStoreCompat interface {
 // ExecutionLoggerCompat는 scheduler.ExecutionLogger 인터페이스와 호환성 검증용 로컬 복사본.
 type ExecutionLoggerCompat interface {
 	CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error)
-	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error
+	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error
 	GetLatestLogID(ctx context.Context, automationID string) (string, error)
 }
 
@@ -135,7 +135,7 @@ func (m *mockDBStore) CreateExecutionLog(ctx context.Context, automationID strin
 	return id, nil
 }
 
-func (m *mockDBStore) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error {
+func (m *mockDBStore) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error {
 	if m.updateLogErr != nil {
 		return m.updateLogErr
 	}
@@ -308,7 +308,7 @@ func TestUpdateExecutionLog_Success(t *testing.T) {
 	logID := "log-success-001"
 	output := "Morning briefing email sent successfully."
 
-	if err := store.UpdateExecutionLog(ctx, logID, "success", output, "", false); err != nil {
+	if err := store.UpdateExecutionLog(ctx, logID, "success", output, "", nil, 0, false); err != nil {
 		t.Fatalf("TC-DB-004: UpdateExecutionLog returned error: %v", err)
 	}
 
@@ -336,7 +336,7 @@ func TestUpdateExecutionLog_Failure(t *testing.T) {
 	logID := "log-fail-001"
 	errMsg := "AI service unavailable"
 
-	if err := store.UpdateExecutionLog(ctx, logID, "failed", "", errMsg, true); err != nil {
+	if err := store.UpdateExecutionLog(ctx, logID, "failed", "", errMsg, nil, 0, true); err != nil {
 		t.Fatalf("TC-DB-004b: UpdateExecutionLog returned error: %v", err)
 	}
 

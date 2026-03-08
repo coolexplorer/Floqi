@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,11 +21,13 @@ import (
 
 	"floqi/worker/internal/agent"
 	"floqi/worker/internal/config"
-	"floqi/worker/internal/crypto"
 	"floqi/worker/internal/db"
 	"floqi/worker/internal/mcp"
+	"floqi/worker/internal/oauth"
 	"floqi/worker/internal/scheduler"
 )
+
+var cancelFuncs sync.Map // automationID → context.CancelFunc
 
 func main() {
 	// Configure structured logging
@@ -58,6 +63,9 @@ func main() {
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 	}
+	if cfg.RedisTLS {
+		redisOpt.TLSConfig = &tls.Config{}
+	}
 	asynqClient := asynq.NewClient(redisOpt)
 	defer asynqClient.Close()
 	log.Info().Str("addr", cfg.RedisAddr).Msg("Redis connected")
@@ -82,41 +90,30 @@ func main() {
 	// 7. Create DBStore and runner function (executes an automation by ID)
 	dbStore := db.NewDBStore(pool)
 	runner := func(ctx context.Context, automationID string) (*agent.ExecutionResult, error) {
+		// Create cancellable context and register it
+		ctx, cancel := context.WithCancel(ctx)
+		cancelFuncs.Store(automationID, cancel)
+		defer cancelFuncs.Delete(automationID)
+		defer cancel()
+
 		// Load automation config (name, prompt, user_id) from DB
 		autoCfg, err := dbStore.GetAutomationConfig(ctx, automationID)
 		if err != nil {
 			return nil, fmt.Errorf("load automation config: %w", err)
 		}
 
-		// Load user's OAuth tokens from connected_services
-		rows, queryErr := pool.Query(ctx,
-			`SELECT provider, access_token_encrypted FROM connected_services
-			 WHERE user_id = $1 AND is_active = true`,
-			autoCfg.UserID,
-		)
-		if queryErr != nil {
-			return nil, fmt.Errorf("load connected services for user %s: %w", autoCfg.UserID, queryErr)
-		}
-		defer rows.Close()
-
+		// Load user's Google OAuth token with automatic refresh
+		svc, svcErr := dbStore.GetConnectedServiceByProvider(ctx, autoCfg.UserID, "google")
 		var gmailToken, calendarToken string
-		for rows.Next() {
-			var provider, encryptedToken string
-			if scanErr := rows.Scan(&provider, &encryptedToken); scanErr != nil {
-				return nil, fmt.Errorf("scan connected service: %w", scanErr)
-			}
-			token, decryptErr := crypto.Decrypt(encryptedToken)
-			if decryptErr != nil {
-				log.Warn().Err(decryptErr).Str("provider", provider).Msg("failed to decrypt token, skipping")
-				continue
-			}
-			if provider == "google" {
+		if svcErr == nil && svc != nil {
+			googleClient := oauth.NewGoogleOAuthClient(cfg.GoogleClientID, cfg.GoogleClientSecret)
+			token, tokenErr := oauth.GetAccessTokenAndMarkExpiredOnFailure(ctx, pool, svc, googleClient)
+			if tokenErr != nil {
+				log.Warn().Err(tokenErr).Str("user_id", autoCfg.UserID).Msg("failed to get Google access token, continuing without")
+			} else {
 				gmailToken = token
 				calendarToken = token
 			}
-		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			return nil, fmt.Errorf("iterate connected services: %w", rowsErr)
 		}
 
 		// Create per-user MCP registry with actual OAuth tokens
@@ -144,7 +141,74 @@ func main() {
 	cronAdapter := &dbCronAdapter{store: dbStore}
 	dispatcher := scheduler.NewCronDispatcher(cronAdapter, queue, pollInterval)
 
-	// 11. Start Asynq server (processes queued tasks)
+	// 11. Start HTTP enqueue endpoint (for Web API to trigger tasks)
+	enqueuePort := os.Getenv("ENQUEUE_PORT")
+	if enqueuePort == "" {
+		enqueuePort = "8081"
+	}
+	httpMux := http.NewServeMux()
+	httpMux.HandleFunc("POST /enqueue", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			AutomationID string `json:"automation_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AutomationID == "" {
+			http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+			return
+		}
+		if err := queue.EnqueueAutomation(r.Context(), body.AutomationID); err != nil {
+			log.Error().Err(err).Str("automation_id", body.AutomationID).Msg("HTTP enqueue failed")
+			http.Error(w, `{"error":"enqueue failed"}`, http.StatusInternalServerError)
+			return
+		}
+		log.Info().Str("automation_id", body.AutomationID).Msg("Task enqueued via HTTP")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"queued"}`))
+	})
+	httpMux.HandleFunc("POST /cancel", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			AutomationID string `json:"automation_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AutomationID == "" {
+			http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Try to cancel running task
+		if cancelFn, ok := cancelFuncs.LoadAndDelete(body.AutomationID); ok {
+			cancelFn.(context.CancelFunc)()
+			log.Info().Str("automation_id", body.AutomationID).Msg("Running task cancelled")
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status":"cancelled"}`))
+			return
+		}
+
+		// Try to delete from Asynq queue (pending task)
+		inspector := asynq.NewInspector(redisOpt)
+		tasks, _ := inspector.ListPendingTasks("default")
+		for _, t := range tasks {
+			var payload struct {
+				AutomationID string `json:"automation_id"`
+			}
+			if json.Unmarshal(t.Payload, &payload) == nil && payload.AutomationID == body.AutomationID {
+				if delErr := inspector.DeleteTask("default", t.ID); delErr == nil {
+					log.Info().Str("automation_id", body.AutomationID).Msg("Pending task deleted from queue")
+					w.Header().Set("Content-Type", "application/json")
+					w.Write([]byte(`{"status":"cancelled"}`))
+					return
+				}
+			}
+		}
+
+		http.Error(w, `{"error":"task not found or already completed"}`, http.StatusNotFound)
+	})
+	go func() {
+		log.Info().Str("port", enqueuePort).Msg("HTTP enqueue endpoint started")
+		if err := http.ListenAndServe(":"+enqueuePort, httpMux); err != nil {
+			log.Error().Err(err).Msg("HTTP server stopped")
+		}
+	}()
+
+	// 12. Start Asynq server (processes queued tasks)
 	srv := asynq.NewServer(redisOpt, asynq.Config{
 		Concurrency: 10,
 		Queues:      map[string]int{"default": 10},
@@ -196,10 +260,13 @@ func (a *anthropicAdapter) CreateMessage(ctx context.Context, messages []agent.C
 
 	sdkTools := make([]anthropic.ToolUnionParam, 0, len(tools))
 	for _, t := range tools {
-		tool := anthropic.ToolUnionParamOfTool(
-			anthropic.ToolInputSchemaParam{Properties: t.InputSchema},
-			t.Name,
-		)
+		schema := anthropic.ToolInputSchemaParam{}
+		if schemaMap, ok := t.InputSchema.(map[string]interface{}); ok {
+			if props, exists := schemaMap["properties"]; exists {
+				schema.Properties = props
+			}
+		}
+		tool := anthropic.ToolUnionParamOfTool(schema, t.Name)
 		if t.Description != "" {
 			tool.OfTool.Description = param.NewOpt(t.Description)
 		}

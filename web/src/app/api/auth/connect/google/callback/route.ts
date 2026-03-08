@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
 import { createClient } from '@/lib/supabase/server';
+import { encrypt } from '@/lib/crypto';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -69,20 +70,21 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Dynamic import avoids TDZ issue with vitest vi.mock factory hoisting
-  const { encrypt } = await import('@/lib/crypto');
   const encryptedAccess = await encrypt(tokens.access_token ?? '');
   const encryptedRefresh = await encrypt(tokens.refresh_token ?? '');
 
-  const { error: upsertError } = await supabase.from('connected_services').upsert({
-    user_id: user.id,
-    service_name: 'google',
-    encrypted_access_token: encryptedAccess,
-    encrypted_refresh_token: encryptedRefresh,
-    expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-    scopes: JSON.stringify(SCOPES),
-    connected_at: new Date().toISOString(),
-  });
+  const { error: upsertError } = await supabase.from('connected_services').upsert(
+    {
+      user_id: user.id,
+      provider: 'google',
+      access_token_encrypted: encryptedAccess,
+      refresh_token_encrypted: encryptedRefresh,
+      token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+      scopes: SCOPES,
+      is_active: true,
+    },
+    { onConflict: 'user_id,provider' }
+  );
 
   if (upsertError) {
     return NextResponse.json(

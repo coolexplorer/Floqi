@@ -48,7 +48,7 @@ function buildChain(result: unknown) {
 
 // Sets up mockFrom to route by table name for tests involving disconnect click
 function setupDisconnectMock({
-  connectedService = { id: "conn-1", service_name: "google", connected_at: "2026-03-01T10:00:00Z", scopes: ["gmail.readonly"] },
+  connectedService = { id: "conn-1", provider: "google", created_at: "2026-03-01T10:00:00Z", scopes: ["gmail.readonly"] },
   deleteError = null as null | { message: string },
   activeAutomations = [] as { id: string; name: string; template_type: string }[],
 } = {}) {
@@ -134,8 +134,8 @@ describe("ConnectionsPage", () => {
           data: [
             {
               id: "conn-1",
-              service_name: "google",
-              connected_at: connectedAt,
+              provider: "google",
+              created_at: connectedAt,
               scopes: ["gmail.readonly", "calendar.readonly"],
             },
           ],
@@ -197,8 +197,9 @@ describe("ConnectionsPage", () => {
     await userEvent.click(confirmButton);
 
     // Assert — DELETE was called, card updates to disconnected state
+    // After disconnect, Google joins Notion/Slack/GitHub as disconnected → 4 total "미연결" badges
     await waitFor(() => {
-      expect(screen.getByText(/미연결|not connected/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/미연결/i).length).toBe(4);
     });
 
     // Modal should close
@@ -207,7 +208,7 @@ describe("ConnectionsPage", () => {
 
   it("TC-2005 (cancel): clicking cancel in modal does NOT disconnect", async () => {
     // Arrange — Google is connected, no active automations
-    setupDisconnectMock({ connectedService: { id: "conn-1", service_name: "google", connected_at: "2026-03-01T10:00:00Z", scopes: [] } });
+    setupDisconnectMock({ connectedService: { id: "conn-1", provider: "google", created_at: "2026-03-01T10:00:00Z", scopes: [] } });
 
     render(<ConnectionsPage />);
 
@@ -310,9 +311,9 @@ describe("ConnectionsPage", () => {
       expect(mockAutomationsUpdate).toHaveBeenCalledWith({ status: "paused" });
     });
 
-    // Card should show disconnected
+    // Card should show disconnected — 4 total (Google + Notion + Slack + GitHub)
     await waitFor(() => {
-      expect(screen.getByText(/미연결|not connected/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/미연결/i).length).toBe(4);
     });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -328,8 +329,8 @@ describe("ConnectionsPage", () => {
           data: [
             {
               id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
+              provider: "google",
+              created_at: "2026-03-01T10:00:00Z",
               scopes: ["gmail.readonly"],
               is_active: false,
             },
@@ -360,8 +361,8 @@ describe("ConnectionsPage", () => {
           data: [
             {
               id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
+              provider: "google",
+              created_at: "2026-03-01T10:00:00Z",
               scopes: ["gmail.readonly"],
               is_active: true,
             },
@@ -391,15 +392,15 @@ describe("ConnectionsPage", () => {
           data: [
             {
               id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
+              provider: "google",
+              created_at: "2026-03-01T10:00:00Z",
               scopes: ["gmail.readonly"],
               is_active: false,
             },
             {
               id: "conn-2",
-              service_name: "notion",
-              connected_at: "2026-03-02T10:00:00Z",
+              provider: "notion",
+              created_at: "2026-03-02T10:00:00Z",
               scopes: [],
               is_active: true,
             },
@@ -428,8 +429,8 @@ describe("ConnectionsPage", () => {
           data: [
             {
               id: "conn-1",
-              service_name: "google",
-              connected_at: "2026-03-01T10:00:00Z",
+              provider: "google",
+              created_at: "2026-03-01T10:00:00Z",
               scopes: ["gmail.readonly"],
               is_active: false,
             },

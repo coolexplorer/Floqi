@@ -84,10 +84,12 @@ func (s *DBStore) CreateExecutionLog(ctx context.Context, automationID, status s
 }
 
 // UpdateExecutionLog updates the status and result of an execution log on completion.
-func (s *DBStore) UpdateExecutionLog(ctx context.Context, logID, status, output, errorMsg string, retried bool) error {
+func (s *DBStore) UpdateExecutionLog(ctx context.Context, logID, status, output, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE execution_logs SET status = $1, error_message = $2, completed_at = NOW() WHERE id = $3`,
-		status, errorMsg, logID,
+		`UPDATE execution_logs
+		 SET status = $1, error_message = $2, tool_calls = $3, tokens_used = $4, completed_at = NOW()
+		 WHERE id = $5`,
+		status, errorMsg, toolCallsJSON, tokensUsed, logID,
 	)
 	if err != nil {
 		return fmt.Errorf("update execution log: %w", err)
@@ -206,9 +208,9 @@ func (s *DBStore) GetExecutionLogsByDateRange(
 func (s *DBStore) GetConnectedServiceByProvider(ctx context.Context, userID, provider string) (*ConnectedService, error) {
 	var svc ConnectedService
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, user_id, provider, encrypted_access_token, encrypted_refresh_token, expires_at, is_active
+		`SELECT id, user_id, provider, access_token_encrypted, refresh_token_encrypted, token_expires_at, is_active
 		 FROM connected_services
-		 WHERE user_id = $1 AND service_name = $2
+		 WHERE user_id = $1 AND provider = $2
 		 LIMIT 1`,
 		userID, provider,
 	).Scan(&svc.ID, &svc.UserID, &svc.Provider, &svc.AccessTokenEncrypted, &svc.RefreshTokenEncrypted, &svc.ExpiresAt, &svc.IsActive)

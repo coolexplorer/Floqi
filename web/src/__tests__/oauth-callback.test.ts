@@ -13,7 +13,9 @@ import { NextRequest } from "next/server";
 import { GET } from "@/app/api/auth/connect/google/callback/route";
 
 // Mock crypto module (AES-256-GCM encryption)
-const mockEncrypt = vi.fn();
+const { mockEncrypt } = vi.hoisted(() => ({
+  mockEncrypt: vi.fn(),
+}));
 vi.mock("@/lib/crypto", () => ({
   encrypt: mockEncrypt,
 }));
