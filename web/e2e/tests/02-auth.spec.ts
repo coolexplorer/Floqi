@@ -51,6 +51,16 @@ test.describe('Authentication', () => {
       await page.getByRole('button', { name: 'Sign Up' }).click()
       await expect(page.getByText('Email is required')).toBeVisible()
     })
+
+    test('TC-1011: duplicate email signup shows error', async ({ page }) => {
+      // Use the same email as the global test user
+      await page.goto('/signup')
+      await page.getByLabel('Email').fill('e2e-test@floqi.test')
+      await page.getByLabel(/password/i).fill('TestPassword123!')
+      await page.getByRole('button', { name: 'Sign Up' }).click()
+      // Supabase returns error for duplicate email
+      await expect(page.locator('[id="signup-error"]')).toBeVisible({ timeout: 10000 })
+    })
   })
 
   test.describe('Login', () => {
@@ -108,19 +118,12 @@ test.describe('Authentication', () => {
     test('TC-1009: Google OAuth button initiates OAuth flow', async ({ page }) => {
       await page.goto('/login')
       const loginUrl = page.url()
-      const [popup] = await Promise.all([
-        page.waitForEvent('popup', { timeout: 5000 }).catch(() => null),
-        page.getByRole('button', { name: /continue with google/i }).click(),
-      ])
-      if (popup) {
-        // OAuth opened in popup — verify it targets Google/Supabase
-        await expect(popup).toHaveURL(/accounts\.google\.com|supabase/)
-      } else {
-        // OAuth redirected the main page — verify it navigated away from /login
-        await page.waitForURL((url) => url.href !== loginUrl, { timeout: 5000 })
-        const newUrl = page.url()
-        expect(newUrl).not.toBe(loginUrl)
-      }
+      await page.getByRole('button', { name: /continue with google/i }).click()
+      // OAuth should redirect away from /login to Supabase/Google
+      await page.waitForURL((url) => url.href !== loginUrl, { timeout: 10000 })
+      const newUrl = page.url()
+      expect(newUrl).not.toBe(loginUrl)
+      expect(newUrl).toMatch(/supabase|google|accounts\.google\.com/)
     })
 
     test('TC-1010: Sign Up link on login page navigates to /signup', async ({ page }) => {
@@ -133,6 +136,16 @@ test.describe('Authentication', () => {
       await page.goto('/signup')
       await page.getByRole('link', { name: /sign in/i }).click()
       await expect(page).toHaveURL(/\/login/)
+    })
+  })
+
+  test.describe('Auth Redirects', () => {
+    test('TC-1012: authenticated user on landing redirects to dashboard', async ({ page }) => {
+      // This test uses the authenticated storageState
+      await page.goto('/')
+      // Landing page checks auth and redirects to /dashboard
+      await page.waitForURL('**/dashboard', { timeout: 15000 })
+      await expect(page).toHaveURL(/\/dashboard/)
     })
   })
 })

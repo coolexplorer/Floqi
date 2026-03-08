@@ -51,6 +51,48 @@ test.describe('Connections', () => {
       await page.getByRole('button', { name: '취소' }).click()
       await expect(page.getByText('서비스 연결 해제')).toBeHidden()
     })
+
+    test('TC-2008: connected service shows connection details', async ({ page }) => {
+      await page.goto('/connections')
+      await expect(page.getByRole('button', { name: /disconnect/i })).toBeVisible({ timeout: 10000 })
+      // Connected card should show service name and connection status
+      await expect(page.getByText('Google')).toBeVisible()
+      await expect(page.getByText(/연결됨|Connected/i)).toBeVisible()
+    })
+
+    test('TC-2009: disconnect with affected automations shows warning', async ({ page, userId }) => {
+      // Seed an active automation that depends on Google
+      const { seedAutomation: seed, getAdminClient } = await import('../helpers/data-helpers')
+      const auto = await seed(userId, {
+        name: 'E2E Google Dependent',
+        template_type: 'morning_briefing',
+        status: 'active',
+        schedule_cron: '0 8 * * *'
+      })
+      expect(auto).not.toBeNull()
+
+      try {
+        await page.goto('/connections')
+        await page.getByRole('button', { name: /disconnect/i }).click()
+
+        // Modal should show affected automations warning
+        await expect(page.getByText(/자동화가 일시정지됩니다/)).toBeVisible({ timeout: 5000 })
+
+        // Cancel to not actually disconnect
+        await page.getByRole('button', { name: '취소' }).click()
+      } finally {
+        // Always cleanup
+        if (auto) {
+          const admin = getAdminClient()
+          await admin.from('automations').delete().eq('id', auto.id)
+        }
+      }
+    })
+  })
+
+  test('TC-2010: shows Add Integration button', async ({ page }) => {
+    await page.goto('/connections')
+    await expect(page.getByRole('button', { name: /add integration/i })).toBeVisible()
   })
 
   test('TC-2007: shows Coming Soon for Notion, Slack, GitHub', async ({ page }) => {

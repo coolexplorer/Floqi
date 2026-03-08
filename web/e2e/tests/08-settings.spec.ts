@@ -10,7 +10,7 @@ test.describe('Settings', () => {
 
     test('TC-7002: save profile shows success toast', async ({ page }) => {
       await page.goto('/settings')
-      await page.waitForTimeout(1000) // Wait for data to load
+      await expect(page.locator('#display-name')).toBeVisible({ timeout: 10000 })
 
       const nameInput = page.locator('#display-name')
       await nameInput.clear()
@@ -24,6 +24,15 @@ test.describe('Settings', () => {
       await page.goto('/settings')
       await expect(page.locator('#language')).toBeVisible()
       await expect(page.locator('#timezone')).toBeVisible()
+    })
+
+    test('TC-7014: empty name shows validation error', async ({ page }) => {
+      await page.goto('/settings')
+      await expect(page.locator('#display-name')).toBeVisible({ timeout: 10000 })
+      const nameInput = page.locator('#display-name')
+      await nameInput.clear()
+      await page.getByRole('button', { name: /save|저장/i }).click()
+      await expect(page.getByText('Name is required')).toBeVisible()
     })
   })
 
@@ -46,6 +55,13 @@ test.describe('Settings', () => {
       await page.getByRole('button', { name: /register key|키 등록/i }).click()
       await expect(page.getByText(/유효하지 않은 API 키 형식/)).toBeVisible()
     })
+
+    test('TC-7015: valid API key saves successfully', async ({ page }) => {
+      await page.goto('/settings')
+      await page.locator('#api-key').fill('sk-ant-test-valid-key')
+      await page.getByRole('button', { name: /register key|키 등록/i }).click()
+      await expect(page.getByText(/저장 완료|saved successfully/i)).toBeVisible({ timeout: 10000 })
+    })
   })
 
   test.describe('Preferences', () => {
@@ -61,7 +77,7 @@ test.describe('Settings', () => {
 
     test('TC-7008: toggle news category', async ({ page }) => {
       await page.goto('/settings')
-      await page.waitForTimeout(1000)
+      await expect(page.getByLabel('Technology')).toBeVisible({ timeout: 10000 })
 
       const techCheckbox = page.getByLabel('Technology')
       const wasChecked = await techCheckbox.isChecked()
