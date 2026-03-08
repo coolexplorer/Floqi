@@ -39,6 +39,7 @@ vi.mock("@/lib/supabase/client", () => ({
       upsert: mockUpsert,
       eq: mockEq,
       single: mockSingle,
+      maybeSingle: mockSingle,
     }),
   }),
 }));
@@ -48,7 +49,7 @@ vi.mock("@/lib/crypto", () => ({
 }));
 
 vi.mock("@/lib/stripe", () => ({
-  stripe: {
+  getStripe: () => ({
     webhooks: {
       constructEvent: vi.fn().mockImplementation((_body: string, sig: string) => {
         if (!sig) throw new Error("Missing signature");
@@ -60,7 +61,7 @@ vi.mock("@/lib/stripe", () => ({
         create: vi.fn().mockResolvedValue({ url: "https://checkout.stripe.com/test" }),
       },
     },
-  },
+  }),
 }));
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -91,7 +92,7 @@ function setupFreeUser() {
   };
 
   mockSingle.mockResolvedValue({ data: profile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle });
   mockSelect.mockReturnValue({ eq: mockEq });
   mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
   mockUpsert.mockResolvedValue({ error: null });

@@ -37,6 +37,7 @@ vi.mock("@/lib/supabase/client", () => ({
           upsert: mockUpsert,
           eq: mockEq,
           single: mockSingle,
+          maybeSingle: mockSingle,
         };
       }
       // profiles table
@@ -45,6 +46,7 @@ vi.mock("@/lib/supabase/client", () => ({
         update: mockUpdate,
         eq: mockEq,
         single: mockSingle,
+        maybeSingle: mockSingle,
       };
     }),
   }),
@@ -75,7 +77,7 @@ function setupUser(overrides: Partial<Profile> = {}) {
 
   // Chain: from('profiles').select('*').eq('id', userId).single()
   mockSingle.mockResolvedValue({ data: profile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle });
   mockSelect.mockReturnValue({ eq: mockEq });
 
   // upsert for user_preferences
@@ -132,22 +134,12 @@ describe("TC-7009: 뉴스 카테고리 선택 저장", () => {
   });
 
   it("기존 선호도 로드 → 저장된 카테고리가 체크된 상태로 표시", async () => {
-    // 기존 선호도가 있는 경우를 시뮬레이션
-    mockSingle.mockResolvedValueOnce({
-      data: {
-        id: "user-123",
-        display_name: "Test User",
-        timezone: "UTC",
-        preferred_language: "en",
-      },
-      error: null,
-    });
-
-    // user_preferences 로드 시 기존 데이터 반환
+    // user_preferences 로드 시 기존 데이터 반환 (news_categories)
+    // Page calls: from('user_preferences').select('value').eq(...).eq(...).maybeSingle()
     mockSelect.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
+          maybeSingle: vi.fn().mockResolvedValue({
             data: { value: ["technology", "science"] },
             error: null,
           }),

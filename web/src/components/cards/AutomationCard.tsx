@@ -19,6 +19,7 @@ export interface Automation {
 
 export interface AutomationCardProps {
   automation: Automation
+  onClick?: (id: string) => void
   onEdit?: (id: string) => void
   onToggle?: (id: string, newStatus: 'active' | 'paused') => void
   onDelete?: (id: string) => void
@@ -43,6 +44,7 @@ function formatRunTime(iso?: string): string {
 
 export function AutomationCard({
   automation,
+  onClick,
   onEdit,
   onToggle,
   onDelete,
@@ -57,8 +59,13 @@ export function AutomationCard({
 
   return (
     <Card variant="elevated" padding="p-5" className={cn('flex flex-col gap-4', className)}>
-      {/* Header */}
-      <div className="flex items-start gap-3">
+      {/* Header — clickable to navigate to detail page */}
+      <button
+        type="button"
+        className="flex items-start gap-3 w-full text-left cursor-pointer rounded-lg -m-1 p-1 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        onClick={() => onClick?.(id)}
+        aria-label={`${name} 상세 보기`}
+      >
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50"
           aria-hidden="true"
@@ -74,7 +81,7 @@ export function AutomationCard({
         <Badge variant={statusMeta.variant} size="sm">
           {statusMeta.label}
         </Badge>
-      </div>
+      </button>
 
       {/* Meta */}
       <div className="flex gap-4 text-xs text-slate-500">

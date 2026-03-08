@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { computeNextRunAt } from '@/lib/cron'
 
 export async function PATCH(
   request: NextRequest,
@@ -22,9 +23,36 @@ export async function PATCH(
   if ('status' in body) updatePayload.status = body.status
   if ('name' in body) updatePayload.name = body.name
   if ('agent_prompt' in body) updatePayload.agent_prompt = body.agent_prompt
-  if ('schedule_cron' in body) {
-    updatePayload.schedule_cron = body.schedule_cron
-    // Recalculate next_run_at based on new schedule (server-side in worker, not here)
+  if ('schedule_cron' in body) updatePayload.schedule_cron = body.schedule_cron
+
+  // Recalculate next_run_at when activating or changing schedule
+  const needsNextRun =
+    updatePayload.status === 'active' || 'schedule_cron' in updatePayload
+
+  if (needsNextRun) {
+    // Fetch current automation to get schedule_cron and timezone
+    const { data: current } = await supabase
+      .from('automations')
+      .select('schedule_cron, timezone')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (current) {
+      const cron = (updatePayload.schedule_cron as string) ?? current.schedule_cron
+      const tz = current.timezone ?? 'UTC'
+      if (cron) {
+        const nextRun = computeNextRunAt(cron, tz)
+        if (nextRun) {
+          updatePayload.next_run_at = nextRun
+        }
+      }
+    }
+  }
+
+  // Clear next_run_at when pausing
+  if (updatePayload.status === 'paused') {
+    updatePayload.next_run_at = null
   }
 
   const { data, error } = await supabase
@@ -32,7 +60,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq('id', id)
     .eq('user_id', user.id)
-    .select('id, name, status, schedule_cron, agent_prompt')
+    .select('id, name, status, schedule_cron, agent_prompt, next_run_at')
     .single()
 
   if (error) {

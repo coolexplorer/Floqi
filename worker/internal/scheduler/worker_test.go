@@ -26,11 +26,13 @@ type createLogCall struct {
 }
 
 type updateLogCall struct {
-	logID    string
-	status   string
-	output   string
-	errorMsg string
-	retried  bool
+	logID          string
+	status         string
+	output         string
+	errorMsg       string
+	toolCallsJSON  []byte
+	tokensUsed     int
+	retried        bool
 }
 
 func (m *mockExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error) {
@@ -42,13 +44,15 @@ func (m *mockExecutionLogger) CreateExecutionLog(ctx context.Context, automation
 	return id, nil
 }
 
-func (m *mockExecutionLogger) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error {
+func (m *mockExecutionLogger) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error {
 	m.updateCalls = append(m.updateCalls, updateLogCall{
-		logID:    logID,
-		status:   status,
-		output:   output,
-		errorMsg: errorMsg,
-		retried:  retried,
+		logID:          logID,
+		status:         status,
+		output:         output,
+		errorMsg:       errorMsg,
+		toolCallsJSON:  toolCallsJSON,
+		tokensUsed:     tokensUsed,
+		retried:        retried,
 	})
 	return nil
 }
@@ -129,7 +133,7 @@ func TestHandleAutomationRun_Success(t *testing.T) {
 // When ExecuteAutomation returns context.DeadlineExceeded, the handler must:
 //   - Return an error (so Asynq retries the task)
 //   - Propagate context.DeadlineExceeded
-//   - Update execution log with status="failed" and non-empty error_message
+//   - Update execution log with status="error" and non-empty error_message
 func TestHandleAutomationRun_APITimeout_TriggersRetry(t *testing.T) {
 	mockLogger := &mockExecutionLogger{}
 
@@ -153,8 +157,8 @@ func TestHandleAutomationRun_APITimeout_TriggersRetry(t *testing.T) {
 		t.Fatalf("TC-5015: expected 1 UpdateExecutionLog call, got %d", len(mockLogger.updateCalls))
 	}
 	u := mockLogger.updateCalls[0]
-	if u.status != "failed" {
-		t.Errorf("TC-5015: update status = %q, want %q", u.status, "failed")
+	if u.status != "error" {
+		t.Errorf("TC-5015: update status = %q, want %q", u.status, "error")
 	}
 	if u.errorMsg == "" {
 		t.Error("TC-5015: expected non-empty error_message in execution log")
@@ -223,8 +227,8 @@ func TestHandleAutomationRun_AllRetriesFailed(t *testing.T) {
 		t.Fatalf("TC-5017: expected 1 UpdateExecutionLog call, got %d", len(mockLogger.updateCalls))
 	}
 	u := mockLogger.updateCalls[0]
-	if u.status != "failed" {
-		t.Errorf("TC-5017: update status = %q, want %q", u.status, "failed")
+	if u.status != "error" {
+		t.Errorf("TC-5017: update status = %q, want %q", u.status, "error")
 	}
 	if !u.retried {
 		t.Error("TC-5017: expected retried=true because retryCount=2")

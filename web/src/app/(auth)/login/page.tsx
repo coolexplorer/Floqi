@@ -52,7 +52,7 @@ export default function LoginPage() {
       <div className="flex w-full lg:w-1/2 flex-col items-center justify-center px-6 py-12 sm:px-12">
         {/* Mobile logo */}
         <div className="mb-8 lg:hidden">
-          <span className="text-2xl font-bold text-blue-600">Floqi</span>
+          <a href="/" className="text-2xl font-bold text-blue-600 hover:text-blue-700">Floqi</a>
         </div>
 
         <div className="w-full max-w-md">
@@ -148,7 +148,7 @@ export default function LoginPage() {
       {/* Right: Brand Panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center bg-gradient-to-br from-blue-600 to-blue-800 px-12">
         <div className="max-w-md text-center text-white">
-          <div className="mb-6 text-4xl font-bold tracking-tight">Floqi</div>
+          <a href="/" className="block mb-6 text-4xl font-bold tracking-tight hover:opacity-90">Floqi</a>
           <h2 className="mb-4 text-2xl font-semibold">Your AI Personal Autopilot</h2>
           <p className="text-blue-100 text-base leading-relaxed">
             Automate your daily workflows with AI. Morning briefings, email triage, reading digests — all on autopilot.

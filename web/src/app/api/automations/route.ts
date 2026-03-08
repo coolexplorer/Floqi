@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { computeNextRunAt } from '@/lib/cron'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -15,18 +16,31 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { name, description, template_type, config, schedule_cron, timezone, status } = body
 
+  const effectiveStatus = status ?? 'paused'
+  const tz = timezone ?? 'UTC'
+
+  const insertPayload: Record<string, unknown> = {
+    user_id: user.id,
+    name,
+    description,
+    template_type,
+    config: config ?? {},
+    schedule_cron,
+    timezone: tz,
+    status: effectiveStatus,
+  }
+
+  // Compute next_run_at when creating as active with a cron schedule
+  if (effectiveStatus === 'active' && schedule_cron) {
+    const nextRun = computeNextRunAt(schedule_cron, tz)
+    if (nextRun) {
+      insertPayload.next_run_at = nextRun
+    }
+  }
+
   const { data, error } = await supabase
     .from('automations')
-    .insert({
-      user_id: user.id,
-      name,
-      description,
-      template_type,
-      config: config ?? {},
-      schedule_cron,
-      timezone: timezone ?? 'UTC',
-      status: status ?? 'paused',
-    })
+    .insert(insertPayload)
     .select()
     .single()
 

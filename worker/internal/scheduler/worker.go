@@ -8,6 +8,7 @@ import (
 
 	"floqi/worker/internal/agent"
 	"github.com/hibiken/asynq"
+	"github.com/rs/zerolog/log"
 )
 
 // RunnerFunc executes an automation by ID and returns the result or an error.
@@ -16,7 +17,7 @@ type RunnerFunc func(ctx context.Context, automationID string) (*agent.Execution
 // ExecutionLogger records the lifecycle of each automation execution in the database.
 type ExecutionLogger interface {
 	CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error)
-	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error
+	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error
 	GetLatestLogID(ctx context.Context, automationID string) (string, error)
 }
 
@@ -69,6 +70,8 @@ func (w *AutomationWorker) handleAutomationRun(ctx context.Context, task *asynq.
 		return errors.New("automationID is empty in payload")
 	}
 
+	log.Info().Str("automation_id", automationID).Msg("Processing automation task")
+
 	retryCount := w.getRetryCount(ctx)
 	retried := retryCount > 0
 
@@ -81,10 +84,19 @@ func (w *AutomationWorker) handleAutomationRun(ctx context.Context, task *asynq.
 
 	result, err := w.run(ctx, automationID)
 	if err != nil {
-		w.logger.UpdateExecutionLog(ctx, logID, "failed", "", err.Error(), retried)
+		log.Error().Err(err).Str("automation_id", automationID).Msg("Automation execution failed")
+		w.logger.UpdateExecutionLog(ctx, logID, "error", "", err.Error(), nil, 0, retried)
 		return err
 	}
 
-	w.logger.UpdateExecutionLog(ctx, logID, "success", result.Output, "", retried)
+	var toolCallsJSON []byte
+	if len(result.ToolCalls) > 0 {
+		toolCallsJSON, _ = json.Marshal(result.ToolCalls)
+	} else {
+		toolCallsJSON = []byte("[]")
+	}
+	tokensUsed := int(result.InputTokens + result.OutputTokens)
+
+	w.logger.UpdateExecutionLog(ctx, logID, "success", result.Output, "", toolCallsJSON, tokensUsed, retried)
 	return nil
 }

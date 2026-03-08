@@ -49,13 +49,13 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/stripe", () => ({
-  stripe: {
+  getStripe: () => ({
     billingPortal: {
       sessions: {
         create: mockStripePortalCreate,
       },
     },
-  },
+  }),
 }));
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"time"
 )
 
 // Sentinel errors
@@ -11,12 +13,24 @@ var ErrMaxIterationsReached = errors.New("max iterations reached")
 // MaxIterations is the maximum number of tool-use loops before returning an error.
 const MaxIterations = 10
 
+// ToolCallRecord represents a single MCP tool invocation for the execution log.
+// Field names use camelCase JSON tags to match the frontend ToolCall interface.
+type ToolCallRecord struct {
+	ID       string          `json:"id"`
+	ToolName string          `json:"toolName"`
+	Input    json.RawMessage `json:"input"`
+	Output   json.RawMessage `json:"output"`
+	Duration int64           `json:"duration"` // milliseconds
+	Status   string          `json:"status"`   // "success" or "error"
+}
+
 // ExecutionResult holds the output and telemetry of a completed automation run.
 type ExecutionResult struct {
 	Output         string
 	InputTokens    int64
 	OutputTokens   int64
 	IterationCount int
+	ToolCalls      []ToolCallRecord
 }
 
 // ToolUseBlock represents a single tool call requested by the AI.
@@ -102,7 +116,17 @@ func ExecuteAutomation(ctx context.Context, client AnthropicClient, registry Too
 			// Execute each tool; on error pass is_error:true to the AI
 			results := make([]toolResult, 0, len(response.ToolUseBlocks))
 			for _, block := range response.ToolUseBlocks {
+				startTime := time.Now()
 				content, toolErr := registry.Execute(ctx, block.Name, block.Input)
+				elapsed := time.Since(startTime).Milliseconds()
+
+				record := ToolCallRecord{
+					ID:       block.ID,
+					ToolName: block.Name,
+					Input:    json.RawMessage(block.Input),
+					Duration: elapsed,
+				}
+
 				if toolErr != nil {
 					results = append(results, toolResult{
 						Type:      "tool_result",
@@ -110,13 +134,23 @@ func ExecuteAutomation(ctx context.Context, client AnthropicClient, registry Too
 						Content:   "error: " + toolErr.Error(),
 						IsError:   true,
 					})
+					record.Status = "error"
+					record.Output, _ = json.Marshal(map[string]string{"error": toolErr.Error()})
 				} else {
 					results = append(results, toolResult{
 						Type:      "tool_result",
 						ToolUseID: block.ID,
 						Content:   content,
 					})
+					record.Status = "success"
+					// Try to store as JSON; fallback to string wrapper
+					if json.Valid([]byte(content)) {
+						record.Output = json.RawMessage(content)
+					} else {
+						record.Output, _ = json.Marshal(content)
+					}
 				}
+				result.ToolCalls = append(result.ToolCalls, record)
 			}
 
 			messages = append(messages, ConversationTurn{

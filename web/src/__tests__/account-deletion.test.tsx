@@ -38,6 +38,7 @@ vi.mock("@/lib/supabase/client", () => ({
       upsert: mockUpsert,
       eq: mockEq,
       single: mockSingle,
+      maybeSingle: mockSingle,
     }),
   }),
 }));
@@ -64,7 +65,7 @@ function setupUser() {
   });
 
   mockSingle.mockResolvedValue({ data: profile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle });
   mockSelect.mockReturnValue({ eq: mockEq });
   mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
   mockUpsert.mockResolvedValue({ error: null });
@@ -105,11 +106,10 @@ describe("TC-7013: 계정 삭제 버튼 및 확인 모달", () => {
       screen.getByRole("button", { name: /delete account|계정 삭제/i })
     );
 
-    // EXPECT: 경고 텍스트가 포함된 확인 모달
+    // EXPECT: 경고 텍스트가 포함된 확인 모달 (modal title or body)
     await waitFor(() => {
-      expect(
-        screen.getByText(/정말 삭제|are you sure|cannot be undone/i)
-      ).toBeInTheDocument();
+      const elements = screen.getAllByText(/정말 삭제|are you sure|cannot be undone/i);
+      expect(elements.length).toBeGreaterThan(0);
     });
   });
 

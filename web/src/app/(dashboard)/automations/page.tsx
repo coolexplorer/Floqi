@@ -126,7 +126,14 @@ export default function AutomationsPage() {
         body: JSON.stringify({ status: newStatus }),
       })
       fetchOk = res.ok
-      if (!res.ok) {
+      if (res.ok) {
+        const data = await res.json()
+        // Update with server-computed next_run_at
+        const applyServerUpdate = (prev: Automation[]) =>
+          prev.map((a) => (a.id === id ? { ...a, ...data } : a))
+        setAutomations(applyServerUpdate)
+        setFiltered(applyServerUpdate)
+      } else {
         const data = await res.json()
         fetchError = (data as { error?: string }).error ?? 'Failed to update'
       }
@@ -268,6 +275,7 @@ export default function AutomationsPage() {
             <AutomationCard
               key={automation.id}
               automation={automation}
+              onClick={(id) => router.push(`/automations/${id}`)}
               onEdit={handleEdit}
               onToggle={handleToggle}
               onDelete={handleDelete}

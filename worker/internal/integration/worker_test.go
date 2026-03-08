@@ -115,11 +115,13 @@ type createCall struct {
 }
 
 type updateCall struct {
-	logID    string
-	status   string
-	output   string
-	errorMsg string
-	retried  bool
+	logID          string
+	status         string
+	output         string
+	errorMsg       string
+	toolCallsJSON  []byte
+	tokensUsed     int
+	retried        bool
 }
 
 type captureLogger struct {
@@ -140,15 +142,17 @@ func (l *captureLogger) CreateExecutionLog(_ context.Context, automationID, stat
 	return fmt.Sprintf("log-%s", automationID), nil
 }
 
-func (l *captureLogger) UpdateExecutionLog(_ context.Context, logID, status, output, errorMsg string, retried bool) error {
+func (l *captureLogger) UpdateExecutionLog(_ context.Context, logID, status, output, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.updates = append(l.updates, updateCall{
-		logID:    logID,
-		status:   status,
-		output:   output,
-		errorMsg: errorMsg,
-		retried:  retried,
+		logID:          logID,
+		status:         status,
+		output:         output,
+		errorMsg:       errorMsg,
+		toolCallsJSON:  toolCallsJSON,
+		tokensUsed:     tokensUsed,
+		retried:        retried,
 	})
 	return nil
 }
@@ -760,8 +764,8 @@ func TestIntegration_TC5013_FullPipeline_FailedExecution(t *testing.T) {
 		t.Fatalf("TC-5013: expected 1 UpdateExecutionLog call, got %d", len(updates))
 	}
 	u := updates[0]
-	if u.status != "failed" {
-		t.Errorf("TC-5013: log status = %q, want %q", u.status, "failed")
+	if u.status != "error" {
+		t.Errorf("TC-5013: log status = %q, want %q", u.status, "error")
 	}
 	if u.errorMsg == "" {
 		t.Error("TC-5013: expected non-empty error_message in execution log")

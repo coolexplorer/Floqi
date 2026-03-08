@@ -333,6 +333,12 @@ describe("TC-6008: Select 'failed' status filter → shows only failed/error log
 describe("TC-6009: 'Last 7 days' date range filter → filters logs by date", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("TC-6009: selecting 'Last 7 days' hides log-4 (10 days ago) — RED: no filter UI", async () => {

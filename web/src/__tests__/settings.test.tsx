@@ -59,9 +59,9 @@ function setupUser(overrides: Partial<Profile> = {}) {
     error: null,
   });
 
-  // Chain: from('profiles').select('*').eq('id', userId).single()
+  // Chain: from('profiles').select('*').eq('id', userId).maybeSingle()
   mockSingle.mockResolvedValue({ data: profile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle });
   mockSelect.mockReturnValue({ eq: mockEq });
 
   // Chain: from('profiles').update({...}).eq('id', userId)

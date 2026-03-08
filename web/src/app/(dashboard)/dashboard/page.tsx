@@ -50,24 +50,43 @@ export default function DashboardPage() {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
 
-      const [automationsResult, logsResult] = await Promise.all([
-        supabase
-          .from("automations")
-          .select("id, name, status")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("execution_logs")
-          .select("id, automation_id, automation_name, status, tokens_used, created_at")
-          .eq("user_id", user.id)
-          .gte("created_at", weekAgo.toISOString())
-          .order("created_at", { ascending: false })
-          .limit(10),
-      ]);
+      // Fetch user's automations first
+      const automationsResult = await supabase
+        .from("automations")
+        .select("id, name, status")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5);
 
       const automations: Automation[] = automationsResult.data ?? [];
-      const logs: ExecutionLog[] = logsResult.data ?? [];
+      const automationIds = automations.map((a) => a.id);
+
+      // Build automation name lookup
+      const nameMap: Record<string, string> = {};
+      for (const a of automations) {
+        nameMap[a.id] = a.name;
+      }
+
+      // Fetch execution logs for user's automations
+      let logs: ExecutionLog[] = [];
+      if (automationIds.length > 0) {
+        const logsResult = await supabase
+          .from("execution_logs")
+          .select("id, automation_id, status, tokens_used, created_at")
+          .in("automation_id", automationIds)
+          .gte("created_at", weekAgo.toISOString())
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        logs = (logsResult.data ?? []).map((l) => ({
+          id: l.id,
+          automation_id: l.automation_id,
+          automation_name: nameMap[l.automation_id] ?? "Unknown",
+          status: l.status,
+          tokens_used: l.tokens_used,
+          created_at: l.created_at,
+        }));
+      }
 
       const activeCount = automations.filter((a) => a.status === "active").length;
       const totalTokens = logs.reduce((sum, log) => sum + (log.tokens_used ?? 0), 0);

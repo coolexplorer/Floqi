@@ -32,13 +32,18 @@ export async function GET(
   const { data, error } = await supabase
     .from('execution_logs')
     .select(
-      'id, automation_id, status, created_at, duration_ms, error_message, tool_calls, tokens_used, automations(name)'
+      'id, automation_id, status, created_at, started_at, completed_at, error_message, tool_calls, tokens_used, automations(name)'
     )
     .eq('id', id)
     .single()
 
   if (error || !data) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  let durationMs: number | undefined
+  if (data.started_at && data.completed_at) {
+    durationMs = new Date(data.completed_at).getTime() - new Date(data.started_at).getTime()
   }
 
   const log: ExecutionLogDetail = {
@@ -48,7 +53,7 @@ export async function GET(
       (data.automations as unknown as { name: string } | null)?.name ?? 'Unknown',
     status: data.status as 'running' | 'success' | 'error',
     created_at: data.created_at,
-    duration_ms: data.duration_ms ?? undefined,
+    duration_ms: durationMs,
     error_message: data.error_message ?? undefined,
     tool_calls: (data.tool_calls as ToolCall[] | null) ?? [],
     tokens_used: data.tokens_used ?? 0,

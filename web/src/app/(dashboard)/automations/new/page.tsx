@@ -82,7 +82,7 @@ export default function NewAutomationPage() {
         const { data } = await supabase
           .from('connected_services')
           .select('*')
-          .eq('service_name', 'google')
+          .eq('provider', 'google')
         setGoogleConnectionError(!(Array.isArray(data) && data.length > 0))
       } catch {
         // If check fails, assume connected (graceful degradation)
@@ -107,23 +107,19 @@ export default function NewAutomationPage() {
     }
 
     try {
-      await fetch('/api/automations', {
+      const res = await fetch('/api/automations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      if (!res.ok) throw new Error('API failed')
     } catch {
-      // fetch unavailable in this environment
-    }
-
-    try {
+      // Fallback: direct DB insert if API route fails
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         await supabase.from('automations').insert({ user_id: user.id, ...payload })
       }
-    } catch {
-      // supabase insert failed
     }
 
     router.push('/automations')

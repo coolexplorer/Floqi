@@ -36,6 +36,7 @@ vi.mock("@/lib/supabase/client", () => ({
       upsert: mockUpsert,
       eq: mockEq,
       single: mockSingle,
+      maybeSingle: mockSingle,
     }),
   }),
 }));
@@ -72,7 +73,7 @@ function setupUser(overrides: Partial<Profile> = {}) {
   });
 
   mockSingle.mockResolvedValue({ data: profile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEq.mockReturnValue({ single: mockSingle, maybeSingle: mockSingle });
   mockSelect.mockReturnValue({ eq: mockEq });
   mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
   mockUpsert.mockResolvedValue({ error: null });

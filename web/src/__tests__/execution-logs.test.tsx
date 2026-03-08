@@ -49,6 +49,8 @@ const mixedExecutionLogs = [
     id: "log-1",
     status: "success",
     duration_ms: 3200,
+    started_at: "2026-03-04T08:00:05Z",
+    completed_at: "2026-03-04T08:00:08.200Z",
     created_at: "2026-03-04T08:00:05Z",
     tool_calls: [
       {
@@ -81,6 +83,8 @@ const mixedExecutionLogs = [
     id: "log-2",
     status: "success",
     duration_ms: 1800,
+    started_at: "2026-03-03T08:00:05Z",
+    completed_at: "2026-03-03T08:00:06.800Z",
     created_at: "2026-03-03T08:00:05Z",
     tool_calls: [
       {
@@ -97,6 +101,8 @@ const mixedExecutionLogs = [
     id: "log-3",
     status: "error",
     duration_ms: 200,
+    started_at: "2026-03-02T08:00:05Z",
+    completed_at: "2026-03-02T08:00:05.200Z",
     created_at: "2026-03-02T08:00:05Z",
     tool_calls: [
       {
@@ -113,6 +119,8 @@ const mixedExecutionLogs = [
     id: "log-4",
     status: "error",
     duration_ms: 150,
+    started_at: "2026-03-01T08:00:05Z",
+    completed_at: "2026-03-01T08:00:05.150Z",
     created_at: "2026-03-01T08:00:05Z",
     tool_calls: [],
   },
