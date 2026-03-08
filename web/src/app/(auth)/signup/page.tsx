@@ -29,7 +29,7 @@ export default function SignupPage() {
       return
     }
     if (password.length < 8) {
-      setError('8자 이상 입력하세요')
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -43,7 +43,7 @@ export default function SignupPage() {
       return
     }
 
-    router.push('/dashboard')
+    window.location.href = '/dashboard'
   }
 
   return (
@@ -73,10 +73,9 @@ export default function SignupPage() {
               icon={<Mail className="h-4 w-4 text-slate-400" />}
             />
             <FormFieldPassword
-              label="비밀번호"
-              aria-label="Password"
+              label="Password"
               name="password"
-              placeholder="8자 이상 입력하세요"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               showStrength={true}

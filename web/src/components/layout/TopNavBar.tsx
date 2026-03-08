@@ -23,6 +23,8 @@ const navLinks: NavLink[] = [
 export function TopNavBar({ transparent = false }: TopNavBarProps) {
   const [scrolled, setScrolled] = React.useState(false)
   const [mobileOpen, setMobileOpen] = React.useState(false)
+  const toggleButtonRef = React.useRef<HTMLButtonElement>(null)
+  const firstMenuLinkRef = React.useRef<HTMLAnchorElement>(null)
 
   React.useEffect(() => {
     function handleScroll() {
@@ -40,6 +42,15 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Focus management: move focus into/out of mobile menu
+  React.useEffect(() => {
+    if (mobileOpen) {
+      firstMenuLinkRef.current?.focus()
+    } else {
+      toggleButtonRef.current?.focus()
+    }
+  }, [mobileOpen])
 
   const showBlur = transparent ? scrolled : true
   const isLight = transparent && !scrolled
@@ -137,12 +148,13 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
               )}
             >
               <span>Sign up</span>
-              <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
+              <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
             </a>
           </div>
 
           {/* Mobile menu button */}
           <button
+            ref={toggleButtonRef}
             type="button"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
@@ -176,9 +188,10 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
             )}
           >
             <div className="mx-auto max-w-6xl space-y-1 px-4 py-3 sm:px-6">
-              {navLinks.map((link) => (
+              {navLinks.map((link, index) => (
                 <a
                   key={link.href}
+                  ref={index === 0 ? firstMenuLinkRef : undefined}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
@@ -215,7 +228,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                   )}
                 >
                   <span>Sign up</span>
-                  <img alt="free" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
+                  <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
                 </a>
               </div>
             </div>

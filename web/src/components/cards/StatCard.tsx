@@ -46,6 +46,9 @@ export function StatCard({
             >
               <trendMeta.Icon className="h-3 w-3" aria-hidden="true" />
               <span>{trendValue}</span>
+              <span className="sr-only">
+                {trend === 'up' ? '(상승)' : trend === 'down' ? '(하락)' : '(변동 없음)'}
+              </span>
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { ToolCallsTimeline, type ToolCall } from '@/components/timeline/ToolCallsTimeline'
 
 interface AutomationDetail {
@@ -69,6 +70,7 @@ export default function AutomationDetailPage() {
   const [runFeedback, setRunFeedback] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'success' | 'error'>('all')
   const [webhookCopied, setWebhookCopied] = React.useState(false)
+  const [isDeleteConfirming, setIsDeleteConfirming] = React.useState(false)
 
   React.useEffect(() => {
     async function fetchData() {
@@ -127,8 +129,8 @@ export default function AutomationDetailPage() {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm('이 자동화를 삭제하시겠습니까?')) return
+  async function confirmDelete() {
+    setIsDeleteConfirming(false)
     setDeleting(true)
     const supabase = createClient()
     await supabase.from('automations').delete().eq('id', id)
@@ -144,7 +146,7 @@ export default function AutomationDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-sm text-slate-400">
+      <div role="status" aria-live="polite" className="flex items-center justify-center py-24 text-sm text-slate-500">
         Loading...
       </div>
     )
@@ -161,11 +163,37 @@ export default function AutomationDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={isDeleteConfirming}
+        onClose={() => setIsDeleteConfirming(false)}
+        title="자동화 삭제"
+        size="sm"
+      >
+        <p className="text-sm text-slate-700">이 자동화를 삭제하시겠습니까? 모든 실행 기록이 함께 삭제됩니다.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setIsDeleteConfirming(false)}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={confirmDelete}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            삭제
+          </button>
+        </div>
+      </Modal>
+
       {/* Back link */}
       <button
         type="button"
         onClick={() => router.push('/automations')}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back to Automations
@@ -232,7 +260,7 @@ export default function AutomationDetailPage() {
             variant="secondary"
             size="sm"
             icon={<Pencil className="h-3.5 w-3.5" />}
-            onClick={() => alert('Edit functionality coming in Sprint 2')}
+            onClick={() => router.push(`/automations/${id}/edit`)}
           >
             Edit
           </Button>
@@ -256,7 +284,7 @@ export default function AutomationDetailPage() {
             variant="ghost"
             size="sm"
             icon={<Trash2 className="h-3.5 w-3.5 text-red-500" />}
-            onClick={handleDelete}
+            onClick={() => setIsDeleteConfirming(true)}
             loading={deleting}
             className="ml-auto text-red-600 hover:bg-red-50"
           >
@@ -314,8 +342,8 @@ export default function AutomationDetailPage() {
           <div className="space-y-3">
             {/* Status filter */}
             <div
-              role="group"
-              aria-label="Filter execution logs by status"
+              role="radiogroup"
+              aria-label="Filter by status"
               className="flex gap-2"
             >
               {(['all', 'success', 'error'] as const).map((filter) => {
@@ -325,6 +353,8 @@ export default function AutomationDetailPage() {
                   <button
                     key={filter}
                     type="button"
+                    role="radio"
+                    aria-checked={isActive}
                     onClick={() => setStatusFilter(filter)}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       isActive
@@ -333,7 +363,6 @@ export default function AutomationDetailPage() {
                     }`}
                   >
                     {label}
-                    <span role="radio" aria-checked={isActive} hidden />
                   </button>
                 )
               })}

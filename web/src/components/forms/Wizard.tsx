@@ -88,13 +88,12 @@ export function Wizard({
       <StepIndicator steps={indicatorSteps} currentStep={currentStep} />
 
       {/* Step content */}
-      <div
-        role="tabpanel"
+      <section
         aria-label={`Step ${currentStep + 1}: ${currentStepData?.label}`}
         className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
       >
         {currentStepData?.content}
-      </div>
+      </section>
 
       {/* Validation error */}
       {validationError && (
@@ -119,7 +118,7 @@ export function Wizard({
 
         <div className="flex items-center gap-2">
           {/* Step counter */}
-          <span className="text-sm text-slate-400">
+          <span className="text-sm text-slate-500">
             {currentStep + 1} / {steps.length}
           </span>
 

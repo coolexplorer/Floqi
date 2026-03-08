@@ -93,7 +93,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
             </span>
             <span className={cn(
               'text-sm',
-              feature.included ? 'text-slate-700' : 'text-slate-400'
+              feature.included ? 'text-slate-700' : 'text-slate-500'
             )}>
               {typeof feature.included === 'string' ? feature.included : feature.label}
               {typeof feature.included === 'string' && feature.label !== feature.included && (
@@ -109,19 +109,18 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 
 export function PricingTable({ plans, className }: PricingTableProps) {
   return (
-    <div
+    <ul
       className={cn(
-        'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3',
+        'grid list-none grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3',
         className
       )}
-      role="list"
       aria-label="Pricing plans"
     >
       {plans.map((plan, index) => (
-        <div key={index} role="listitem">
+        <li key={index}>
           <PricingCard plan={plan} />
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }

@@ -397,15 +397,13 @@ describe("TC-3009: Filter execution logs by status", () => {
       expect(screen.getByText(/execution history/i)).toBeInTheDocument();
     });
 
-    // EXPECT: status filter buttons/tabs for filtering execution logs
-    // ACTUAL: detail page has no status filter UI
-    // → This assertion FAILS (Red phase)
+    // Status filter is now implemented as a radiogroup
     expect(
-      screen.getByRole("group", { name: /filter.*status|status.*filter/i })
+      screen.getByRole("radiogroup", { name: /filter.*status|status.*filter/i })
     ).toBeInTheDocument();
   });
 
-  it("clicking 'success' filter shows only successful logs — RED: not implemented", async () => {
+  it("clicking 'success' filter shows only successful logs", async () => {
     setupPage(mixedExecutionLogs);
 
     render(<AutomationDetailPage />);
@@ -418,9 +416,8 @@ describe("TC-3009: Filter execution logs by status", () => {
       expect(rows.length).toBe(4);
     });
 
-    // EXPECT: a "success" filter button
-    // ACTUAL: no filter button exists
-    const successFilterBtn = screen.getByRole("button", {
+    // Filter buttons have role="radio" (part of radiogroup)
+    const successFilterBtn = screen.getByRole("radio", {
       name: /^success$/i,
     });
     await userEvent.click(successFilterBtn);
@@ -434,7 +431,7 @@ describe("TC-3009: Filter execution logs by status", () => {
     });
   });
 
-  it("clicking 'error' filter shows only failed logs — RED: not implemented", async () => {
+  it("clicking 'error' filter shows only failed logs", async () => {
     setupPage(mixedExecutionLogs);
 
     render(<AutomationDetailPage />);
@@ -443,9 +440,8 @@ describe("TC-3009: Filter execution logs by status", () => {
       expect(screen.getByText(/execution history/i)).toBeInTheDocument();
     });
 
-    // EXPECT: an "error" filter button
-    // ACTUAL: no filter button exists
-    const errorFilterBtn = screen.getByRole("button", {
+    // Filter buttons have role="radio" (part of radiogroup)
+    const errorFilterBtn = screen.getByRole("radio", {
       name: /^error$/i,
     });
     await userEvent.click(errorFilterBtn);
@@ -463,7 +459,7 @@ describe("TC-3009: Filter execution logs by status", () => {
     expect(successBadges.length).toBe(0);
   });
 
-  it("clicking 'all' filter after filtering restores full list — RED: not implemented", async () => {
+  it("clicking 'all' filter after filtering restores full list", async () => {
     setupPage(mixedExecutionLogs);
 
     render(<AutomationDetailPage />);
@@ -472,11 +468,11 @@ describe("TC-3009: Filter execution logs by status", () => {
       expect(screen.getByText(/execution history/i)).toBeInTheDocument();
     });
 
-    // ACTUAL: no filter buttons → these will throw and fail
-    const successFilterBtn = screen.getByRole("button", { name: /^success$/i });
+    // Filter buttons have role="radio" (part of radiogroup)
+    const successFilterBtn = screen.getByRole("radio", { name: /^success$/i });
     await userEvent.click(successFilterBtn);
 
-    const allFilterBtn = screen.getByRole("button", { name: /^all$/i });
+    const allFilterBtn = screen.getByRole("radio", { name: /^all$/i });
     await userEvent.click(allFilterBtn);
 
     await waitFor(() => {
@@ -496,9 +492,8 @@ describe("TC-3009: Filter execution logs by status", () => {
       expect(screen.getByText(/execution history/i)).toBeInTheDocument();
     });
 
-    // EXPECT: radiogroup with aria-checked radio buttons
-    // ACTUAL: no filter UI → fails
-    const filterGroup = screen.getByRole("group", {
+    // Filter is implemented as a radiogroup with aria-checked radio buttons
+    const filterGroup = screen.getByRole("radiogroup", {
       name: /filter.*status|status.*filter/i,
     });
 

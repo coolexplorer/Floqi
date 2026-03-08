@@ -126,7 +126,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
                   }
                   ${isCollapsed ? 'justify-center' : ''}
                 `}
-                title={isCollapsed ? item.label : undefined}
+                aria-label={isCollapsed ? item.label : undefined}
               >
                 <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-600'}`} />
                 {!isCollapsed && <span className="text-body">{item.label}</span>}
@@ -158,7 +158,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
                   }
                   ${isCollapsed ? 'justify-center' : ''}
                 `}
-                title={isCollapsed ? item.label : undefined}
+                aria-label={isCollapsed ? item.label : undefined}
               >
                 <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-600'}`} />
                 {!isCollapsed && <span className="text-body">{item.label}</span>}

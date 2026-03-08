@@ -56,9 +56,8 @@ export const FormFieldPassword = React.forwardRef<HTMLInputElement, FormFieldPas
             onClick={() => setVisible((v) => !v)}
             aria-label={visible ? '비밀번호 숨기기' : '비밀번호 표시'}
             className={cn(
-              'absolute right-3 text-slate-400 hover:text-slate-600',
+              'absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded',
-              props.errorMessage ? 'top-[2.15rem]' : 'top-[2.15rem]'
             )}
           >
             {visible ? (

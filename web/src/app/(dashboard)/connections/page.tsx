@@ -98,8 +98,8 @@ export default function ConnectionsPage() {
     setShowDisconnectModal(false);
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
+  if (loading) return <div role="status" aria-live="polite">Loading...</div>;
+  if (error) return <div role="alert">{error}</div>;
 
   const inactiveConnections = connections.filter((s) => s.is_active === false);
 
@@ -124,7 +124,8 @@ export default function ConnectionsPage() {
       <div aria-hidden={showDisconnectModal}>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">Connections</h1>
-          <Button variant="primary">+ Add Integration</Button>
+          <span id="add-integration-help" className="sr-only">Coming soon</span>
+          <Button variant="primary" disabled aria-describedby="add-integration-help">+ Add Integration</Button>
         </div>
 
         {/* PM-03: Reconnection banners for inactive services */}

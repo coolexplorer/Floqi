@@ -54,11 +54,47 @@ export function Modal({
     };
   }, [isOpen]);
 
-  // Focus trap: focus dialog on open
+  // Focus trap: focus first focusable element on open, trap Tab/Shift+Tab inside
   useEffect(() => {
-    if (isOpen && dialogRef.current) {
+    if (!isOpen || !dialogRef.current) return;
+
+    const FOCUSABLE_SELECTORS =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+    const getFocusable = () =>
+      Array.from(
+        dialogRef.current!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS)
+      ).filter((el) => !el.closest('[aria-hidden="true"]'));
+
+    // Focus first element
+    const focusable = getFocusable();
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    } else {
       dialogRef.current.focus();
     }
+
+    const handleTabTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTabTrap);
+    return () => document.removeEventListener('keydown', handleTabTrap);
   }, [isOpen]);
 
   if (!isOpen || typeof document === 'undefined') return null;

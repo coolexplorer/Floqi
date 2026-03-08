@@ -65,7 +65,7 @@ export function Tooltip({
   const [coords, setCoords] = useState<TooltipCoords>({ top: 0, left: 0 });
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const tooltipId = 'floqi-tooltip';
+  const tooltipId = React.useId();
 
   const updatePosition = useCallback(() => {
     if (!wrapperRef.current || !tooltipRef.current) return;

@@ -146,13 +146,17 @@ export default function NewAutomationPage() {
                 <button
                   key={tpl.id}
                   type="button"
-                  onClick={() => handleTemplateSelect(tpl)}
+                  onClick={() => !tpl.comingSoon && handleTemplateSelect(tpl)}
+                  disabled={tpl.comingSoon}
+                  aria-disabled={tpl.comingSoon}
                   className={`flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                    isSelected
+                    tpl.comingSoon
+                      ? 'cursor-not-allowed opacity-50 border-slate-200 bg-white'
+                      : isSelected
                       ? 'border-blue-600 bg-blue-50'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                   }`}
-                  aria-pressed={isSelected}
+                  aria-pressed={tpl.comingSoon ? undefined : isSelected}
                 >
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-lg ${
