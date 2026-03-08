@@ -41,7 +41,7 @@ export default async function globalSetup(config: FullConfig) {
   }).eq('id', userId)
 
   // 4. Seed automations
-  const { data: auto1 } = await admin.from('automations').insert({
+  const { data: auto1, error: auto1Error } = await admin.from('automations').insert({
     user_id: userId,
     name: 'E2E Morning Briefing',
     description: 'Test automation for morning briefing',
@@ -50,8 +50,11 @@ export default async function globalSetup(config: FullConfig) {
     status: 'active',
     config: {},
   }).select().single()
+  if (auto1Error || !auto1) {
+    throw new Error(`Failed to seed automation 1: ${auto1Error?.message}`)
+  }
 
-  const { data: auto2 } = await admin.from('automations').insert({
+  const { data: auto2, error: auto2Error } = await admin.from('automations').insert({
     user_id: userId,
     name: 'E2E Email Triage',
     description: 'Test automation for email triage',
@@ -60,9 +63,12 @@ export default async function globalSetup(config: FullConfig) {
     status: 'paused',
     config: {},
   }).select().single()
+  if (auto2Error || !auto2) {
+    throw new Error(`Failed to seed automation 2: ${auto2Error?.message}`)
+  }
 
   // 5. Seed execution logs
-  if (auto1) {
+  {
     await admin.from('execution_logs').insert([
       {
         automation_id: auto1.id,

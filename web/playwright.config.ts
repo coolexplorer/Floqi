@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: 'http://localhost:3000',
-    headless: false,
+    headless: !process.env.PLAYWRIGHT_HEADED,
     viewport: { width: 1280, height: 800 },
     actionTimeout: 15000,
     navigationTimeout: 30000,
@@ -17,7 +17,7 @@ export default defineConfig({
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
     launchOptions: {
-      slowMo: 400,
+      slowMo: process.env.PLAYWRIGHT_HEADED ? 400 : 0,
     },
   },
   globalSetup: './e2e/global-setup.ts',

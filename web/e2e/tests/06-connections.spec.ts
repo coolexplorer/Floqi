@@ -14,13 +14,12 @@ test.describe('Connections', () => {
 
   test('TC-2003: Connect button navigates to Google OAuth', async ({ page }) => {
     await page.goto('/connections')
-    // Intercept the navigation to avoid actual OAuth
-    const navigationPromise = page.waitForURL(/\/api\/auth\/connect\/google|accounts\.google/, { timeout: 10000 }).catch(() => null)
+    const originalUrl = page.url()
     await page.getByRole('button', { name: /connect/i }).first().click()
-    await navigationPromise
-    // Verify URL changed toward OAuth
+    // Wait for navigation away from connections page
+    await page.waitForURL((url) => url.href !== originalUrl, { timeout: 10000 })
     const url = page.url()
-    expect(url.includes('connect/google') || url.includes('google')).toBeTruthy()
+    expect(url).toContain('connect/google')
   })
 
   test.describe('With connection', () => {

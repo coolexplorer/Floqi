@@ -14,7 +14,7 @@ test.describe('Billing', () => {
 
   test('TC-8003: Upgrade button calls checkout API', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForTimeout(1000)
+    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible({ timeout: 10000 })
 
     // Mock the checkout API
     await page.route('**/api/billing/checkout', (route) =>
@@ -35,12 +35,14 @@ test.describe('Billing', () => {
     // Temporarily set plan to 'pro'
     await adminClient.from('profiles').update({ plan: 'pro' }).eq('id', userId)
 
-    await page.goto('/settings')
-    await expect(page.getByText('Current Plan: Pro')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('500 executions/month')).toBeVisible()
-    await expect(page.getByRole('button', { name: /manage plan/i })).toBeVisible()
-
-    // Reset to free
-    await adminClient.from('profiles').update({ plan: 'free' }).eq('id', userId)
+    try {
+      await page.goto('/settings')
+      await expect(page.getByText('Current Plan: Pro')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText('500 executions/month')).toBeVisible()
+      await expect(page.getByRole('button', { name: /manage plan/i })).toBeVisible()
+    } finally {
+      // Always reset to free, even on assertion failure
+      await adminClient.from('profiles').update({ plan: 'free' }).eq('id', userId)
+    }
   })
 })

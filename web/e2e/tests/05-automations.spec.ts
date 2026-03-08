@@ -75,9 +75,7 @@ test.describe('Automations', () => {
   test.describe('Toggle Status', () => {
     test('TC-3007: toggle automation from active to paused', async ({ page }) => {
       await page.goto('/automations')
-      // Find the active automation card and click pause
-      const card = page.locator('text=E2E Morning Briefing').locator('..')
-      // The card should have a toggle or pause button
+      await expect(page.getByText('E2E Morning Briefing')).toBeVisible({ timeout: 10000 })
       await page.getByText('E2E Morning Briefing').click()
       await page.waitForURL(/\/automations\//)
 
@@ -101,10 +99,10 @@ test.describe('Automations', () => {
     test('TC-3009: delete automation with confirmation modal', async ({ page, userId }) => {
       // Seed a temp automation to delete
       const auto = await seedAutomation(userId, { name: 'E2E Delete Me' })
-      if (!auto) return
+      expect(auto).not.toBeNull()
 
       await page.goto('/automations')
-      await page.waitForTimeout(1000) // Wait for data to load
+      await expect(page.getByText('E2E Delete Me')).toBeVisible({ timeout: 10000 })
 
       // Navigate to the automation detail
       await page.getByText('E2E Delete Me').click()
@@ -156,7 +154,7 @@ test.describe('Automations', () => {
   test.describe('Edit Page', () => {
     test('TC-3013: edit automation name, prompt, output format', async ({ page }) => {
       const autoId = process.env.E2E_AUTOMATION_1_ID
-      if (!autoId) return
+      expect(autoId).toBeTruthy()
 
       await page.goto(`/automations/${autoId}/edit`)
       await expect(page.getByText('Edit Automation')).toBeVisible({ timeout: 10000 })
