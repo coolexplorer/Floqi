@@ -79,6 +79,8 @@ const executionLogs = [
     id: "log-1",
     status: "success",
     duration_ms: 3200,
+    started_at: "2026-03-04T08:00:05Z",
+    completed_at: "2026-03-04T08:00:08.200Z",
     created_at: "2026-03-04T08:00:05Z",
     tool_calls: [
       {
@@ -95,6 +97,8 @@ const executionLogs = [
     id: "log-2",
     status: "error",
     duration_ms: 500,
+    started_at: "2026-03-03T08:00:05Z",
+    completed_at: "2026-03-03T08:00:05.500Z",
     created_at: "2026-03-03T08:00:05Z",
     tool_calls: [],
   },

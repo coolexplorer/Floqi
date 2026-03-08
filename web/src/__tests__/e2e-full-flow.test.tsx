@@ -60,7 +60,7 @@ const AUTOMATION_ID = "automation-e2e-1";
 const googleConnection = {
   id: "conn-1",
   user_id: USER_ID,
-  service_name: "google",
+  provider: "google",
   status: "connected",
   connected_at: "2026-03-01T00:00:00Z",
   scopes: ["gmail.readonly", "calendar.readonly"],
@@ -83,6 +83,8 @@ const executionLog = {
   id: "log-e2e-1",
   status: "success",
   duration_ms: 3800,
+  started_at: "2026-03-05T08:00:10Z",
+  completed_at: "2026-03-05T08:00:13.800Z",
   created_at: "2026-03-05T08:00:10Z",
   result_summary: "Morning briefing sent to e2e@example.com",
   tokens_used: 450,
@@ -377,7 +379,17 @@ describe("TC-3002: Create Morning Briefing automation from template", () => {
       data: [{ id: AUTOMATION_ID }],
       error: null,
     });
-    mockFrom.mockReturnValue({ insert: insertMock });
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "connected_services") {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnValue({ data: [{ provider: "google" }], error: null }),
+        };
+      }
+      return { insert: insertMock };
+    });
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce({ ok: false });
 
     render(<NewAutomationPage />);
 
@@ -760,7 +772,17 @@ describe("Full User Journey: signup → connect → create → run → view logs
       data: [{ id: AUTOMATION_ID }],
       error: null,
     });
-    mockFrom.mockReturnValue({ insert: insertMock });
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "connected_services") {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnValue({ data: [{ provider: "google" }], error: null }),
+        };
+      }
+      return { insert: insertMock };
+    });
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce({ ok: false });
 
     render(<NewAutomationPage />);
 

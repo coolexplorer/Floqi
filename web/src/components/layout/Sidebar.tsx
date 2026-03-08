@@ -36,7 +36,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const homeNav: NavItem[] = [
-    { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Automations', href: '/automations', icon: Zap },
     { label: 'Connections', href: '/connections', icon: LinkIcon },
   ]
@@ -48,8 +48,8 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
   ]
 
   const isActive = (path: string) => {
-    if (path === '/') {
-      return currentPath === '/'
+    if (path === '/dashboard') {
+      return currentPath === '/dashboard'
     }
     return currentPath.startsWith(path)
   }

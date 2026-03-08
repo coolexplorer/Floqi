@@ -31,15 +31,17 @@ func (s *syncedExecutionLogger) CreateExecutionLog(ctx context.Context, automati
 	return id, nil
 }
 
-func (s *syncedExecutionLogger) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, retried bool) error {
+func (s *syncedExecutionLogger) UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updates = append(s.updates, updateLogCall{
-		logID:    logID,
-		status:   status,
-		output:   output,
-		errorMsg: errorMsg,
-		retried:  retried,
+		logID:          logID,
+		status:         status,
+		output:         output,
+		errorMsg:       errorMsg,
+		toolCallsJSON:  toolCallsJSON,
+		tokensUsed:     tokensUsed,
+		retried:        retried,
 	})
 	return nil
 }
@@ -231,13 +233,13 @@ func TestIntegration_TC5013_FailedExecution_ErrorLogged(t *testing.T) {
 		t.Fatal("TC-5013: expected error from handleAutomationRun, got nil")
 	}
 
-	// Assert: UpdateExecutionLog called with status="failed", non-empty error_message, retried=true
+	// Assert: UpdateExecutionLog called with status="error", non-empty error_message, retried=true
 	if len(logger.updateCalls) != 1 {
 		t.Fatalf("TC-5013: expected 1 update call, got %d", len(logger.updateCalls))
 	}
 	u := logger.updateCalls[0]
-	if u.status != "failed" {
-		t.Errorf("TC-5013: status = %q, want %q", u.status, "failed")
+	if u.status != "error" {
+		t.Errorf("TC-5013: status = %q, want %q", u.status, "error")
 	}
 	if u.errorMsg == "" {
 		t.Error("TC-5013: expected non-empty error_message in execution log")

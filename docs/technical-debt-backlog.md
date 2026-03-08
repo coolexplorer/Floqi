@@ -290,6 +290,68 @@ const SCOPE_LABELS: Record<string, string> = {
 
 ---
 
+### TD-004: 환경 기반 설정 스위칭 (로컬/프로덕션) 통합
+
+**우선순위**: P2 (Medium)
+
+**현상**:
+- Redis만 `redis.ts`에서 `REDIS_ADDR` vs `UPSTASH_REDIS_URL` 분기 구현 완료
+- 다른 서비스들 (Supabase, Stripe, Google OAuth 등)도 로컬/프로덕션 환경별 설정이 필요
+- 현재는 `.env.local` vs `.env.production` 파일로만 구분하고 있으나, 런타임 감지 및 fallback 로직이 일관되지 않음
+
+**영향**:
+- 로컬 개발 시 프로덕션 서비스에 접근하거나 반대의 경우 발생 가능
+- 새 서비스 추가 시마다 환경 분기 로직을 개별 구현해야 함
+
+**해결 방안**:
+- `web/src/lib/config.ts` 중앙 설정 모듈 생성
+- 모든 외부 서비스 URL/키를 환경 변수 기반으로 일관되게 관리
+- Worker 측도 동일 패턴 적용 (`worker/internal/config/`)
+- 서비스별: Redis, Supabase, Stripe, Google OAuth, Notion OAuth
+
+**예상 소요**: 3 SP
+
+**타겟 Sprint**: Sprint 6 (안정화 단계)
+
+**관련 파일**:
+- `web/src/lib/redis.ts` (완료 — 참고 패턴)
+- `web/.env.local`, `web/.env.production`
+- `worker/.env`, `worker/cmd/worker/main.go`
+
+---
+
+### ISSUE-006: Queued/Running 실행 취소 (Cancel) 기능
+
+**우선순위**: P2 (Medium)
+
+**현상**:
+- "Run Now" 클릭 후 태스크가 queued/running 상태일 때 취소할 방법이 없음
+- 잘못 실행하거나 오래 걸리는 태스크를 중단할 수 없음
+- UI에 queued 상태가 표시되면 사용자는 결과를 기다릴 수밖에 없음
+
+**영향**:
+- 잘못된 실행에 대한 토큰/비용 낭비
+- 사용자 제어감 부족 (UX 저하)
+
+**해결 방안**:
+- Web: "Cancel" 버튼 추가 (queued/running 상태일 때 표시)
+- API: `DELETE /api/automations/[id]/run` 또는 `POST /api/automations/[id]/cancel`
+- Redis: `asynq:{queue}:pending`에서 태스크 제거 또는 `asynq:{queue}:t:{id}` state를 archived로 변경
+- Worker: context cancellation 지원 (running 중인 태스크 중단)
+- DB: `execution_logs.status`에 `'cancelled'` 상태 추가 (CHECK 제약조건 수정)
+
+**예상 소요**: 5 SP
+
+**타겟 Sprint**: Post-MVP (Sprint 7+)
+
+**관련 파일**:
+- `web/src/app/api/automations/[id]/run/route.ts`
+- `web/src/app/(dashboard)/automations/[id]/page.tsx`
+- `worker/internal/scheduler/worker.go`
+- `supabase/migrations/004_create_execution_logs.sql`
+
+---
+
 ## 우선순위별 요약
 
 | 우선순위 | 항목 | 타겟 Sprint | 예상 SP |
@@ -299,11 +361,13 @@ const SCOPE_LABELS: Record<string, string> = {
 | **P2 (Medium)** | TD-002: Lint Warnings | Sprint 2-3 | 2 |
 | **P2 (Medium)** | ISSUE-002: Forgot Password | Post-MVP | 3 |
 | **P2 (Medium)** | ISSUE-004: 다른 서비스 연결 | Sprint 4-5 | 8 |
+| **P2 (Medium)** | TD-004: 환경 기반 설정 스위칭 | Sprint 6 | 3 |
+| **P2 (Medium)** | ISSUE-006: 실행 취소 (Cancel) | Post-MVP | 5 |
 | **P3 (Low)** | TD-001: Dynamic Import | Sprint 6 | 1 |
 | **P3 (Low)** | TD-003: Test Mock 중복 | Sprint 3-4 | 2 |
 | **P3 (Low)** | ISSUE-005: Scope 설명 간결화 | Sprint 3 | 1 |
 
-**총 예상 SP**: 24 SP
+**총 예상 SP**: 32 SP
 
 ---
 
@@ -323,5 +387,5 @@ Sprint 2에서 처리할 기술 부채 및 이슈:
 
 ---
 
-**마지막 업데이트**: 2026-03-06
+**마지막 업데이트**: 2026-03-08
 **담당**: Main Assistant (Orchestrator)

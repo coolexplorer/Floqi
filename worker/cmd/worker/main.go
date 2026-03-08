@@ -19,6 +19,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/getsentry/sentry-go"
+
 	"floqi/worker/internal/agent"
 	"floqi/worker/internal/config"
 	"floqi/worker/internal/db"
@@ -39,6 +41,21 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config")
+	}
+
+	// Initialize Sentry
+	if sentryDSN := os.Getenv("SENTRY_DSN"); sentryDSN != "" {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:              sentryDSN,
+			TracesSampleRate: 0.1,
+			Environment:      os.Getenv("APP_ENV"),
+		})
+		if err != nil {
+			log.Warn().Err(err).Msg("Sentry initialization failed")
+		} else {
+			log.Info().Msg("Sentry initialized")
+			defer sentry.Flush(2 * time.Second)
+		}
 	}
 
 	// 2. Connect to database
