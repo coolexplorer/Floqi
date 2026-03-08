@@ -123,6 +123,54 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Charts Section */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div data-testid="execution-trend-chart" className="rounded-lg border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Execution Trend</h3>
+            {(() => {
+              const counts: Record<string, number> = {};
+              stats.recentLogs.forEach((log) => {
+                const date = new Date(log.created_at).toLocaleDateString();
+                counts[date] = (counts[date] || 0) + 1;
+              });
+              const chartData = Object.entries(counts).map(([date, count]) => ({ date, count }));
+              return (
+                <>
+                  <div className="flex gap-1 items-end h-[200px]">
+                    {chartData.map((d) => (
+                      <div
+                        key={d.date}
+                        data-chart-point={d.date}
+                        className="flex-1 bg-blue-500 rounded-t"
+                        style={{ height: `${Math.max(d.count * 40, 20)}px` }}
+                        title={`${d.date}: ${d.count}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-1 mt-1">
+                    {chartData.map((d) => (
+                      <span key={d.date} className="flex-1 text-[10px] text-gray-400 text-center truncate">
+                        {d.date}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+          <div data-testid="success-rate-chart" className="rounded-lg border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Success Rate</h3>
+            <div className="flex items-center justify-center h-[200px]">
+              <div className="text-center">
+                <span className="text-4xl font-bold text-green-600">{stats.successRate}</span>
+                <span className="text-lg text-gray-500">%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-3">

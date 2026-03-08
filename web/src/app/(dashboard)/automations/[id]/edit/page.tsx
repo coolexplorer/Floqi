@@ -12,6 +12,7 @@ interface AutomationData {
   schedule_cron: string
   template_type: string
   status: string
+  output_format: string | null
 }
 
 type Frequency = 'daily' | 'weekly' | 'monthly'
@@ -79,6 +80,8 @@ export default function EditAutomationPage() {
   const [minute, setMinute] = React.useState('0')
   const [dayOfWeek, setDayOfWeek] = React.useState('1')
   const [dayOfMonth, setDayOfMonth] = React.useState('1')
+  const [outputFormat, setOutputFormat] = React.useState('email')
+  const [notionConnected, setNotionConnected] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
@@ -91,6 +94,8 @@ export default function EditAutomationPage() {
   React.useEffect(() => {
     async function load() {
       const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { data } = await supabase
         .from('automations')
         .select('*')
@@ -105,6 +110,7 @@ export default function EditAutomationPage() {
       const auto = data as AutomationData
       setName(auto.name)
       setPrompt(auto.agent_prompt ?? auto.description ?? '')
+      setOutputFormat(auto.output_format ?? 'email')
 
       const freq = parseCronFrequency(auto.schedule_cron)
       setFrequency(freq)
@@ -113,6 +119,17 @@ export default function EditAutomationPage() {
       setHour(h)
       setDayOfWeek(parseCronDayOfWeek(auto.schedule_cron))
       setDayOfMonth(parseCronDayOfMonth(auto.schedule_cron))
+
+      // Check Notion connection
+      if (user) {
+        const { data: notionConn } = await supabase
+          .from('connections')
+          .select('*')
+          .eq('service', 'notion')
+          .single()
+        setNotionConnected(!!notionConn)
+      }
+
       setLoading(false)
     }
     load()
@@ -134,7 +151,7 @@ export default function EditAutomationPage() {
       const res = await fetch(`/api/automations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, agent_prompt: prompt, schedule_cron }),
+        body: JSON.stringify({ name, agent_prompt: prompt, schedule_cron, output_format: outputFormat }),
       })
       if (!res.ok) {
         setError('저장에 실패했습니다')
@@ -149,7 +166,7 @@ export default function EditAutomationPage() {
       const supabase = createClient()
       const { error: saveError } = await supabase
         .from('automations')
-        .update({ name, agent_prompt: prompt, schedule_cron })
+        .update({ name, agent_prompt: prompt, schedule_cron, output_format: outputFormat })
         .eq('id', id)
 
       if (saveError) {
@@ -216,6 +233,32 @@ export default function EditAutomationPage() {
           {error && (
             <p role="alert" className="mt-1 text-xs text-red-600">
               {error}
+            </p>
+          )}
+        </div>
+
+        {/* Output Format */}
+        <div>
+          <label
+            htmlFor="edit-output-format"
+            className="block text-sm font-medium text-slate-700 mb-1.5"
+          >
+            Output Format
+          </label>
+          <select
+            id="edit-output-format"
+            data-testid="output-format-select"
+            value={outputFormat}
+            onChange={(e) => setOutputFormat(e.target.value)}
+            className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          >
+            <option value="email">Email</option>
+            <option value="notion">Notion</option>
+            <option value="both">Both</option>
+          </select>
+          {(outputFormat === 'notion' || outputFormat === 'both') && !notionConnected && (
+            <p className="mt-1 text-xs text-amber-600">
+              Notion 연결이 필요합니다. Connect Notion first.
             </p>
           )}
         </div>

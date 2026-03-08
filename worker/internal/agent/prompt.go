@@ -10,6 +10,7 @@ type UserProfile struct {
 	Timezone          string // e.g. "Asia/Seoul", "UTC"
 	PreferredLanguage string // e.g. "ko", "en"
 	NewsCategories    string // comma-separated, e.g. "technology,science"
+	OutputFormat      string // e.g. "email", "notion", "both"
 }
 
 // buildSystemPrompt constructs a system prompt for the given templateType,
@@ -47,6 +48,10 @@ func buildSystemPrompt(profile UserProfile, templateType string) string {
 
 	fmt.Fprintf(&sb, "User timezone: %s\n", tz)
 	fmt.Fprintf(&sb, "Preferred language: %s\n", profile.PreferredLanguage)
+
+	if profile.OutputFormat != "" {
+		fmt.Fprintf(&sb, "Output format: %s\n", profile.OutputFormat)
+	}
 
 	if profile.NewsCategories != "" {
 		// Convert "technology,science" → "technology, science"
