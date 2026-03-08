@@ -125,6 +125,7 @@ export default function EditAutomationPage() {
         const { data: notionConn } = await supabase
           .from('connections')
           .select('*')
+          .eq('user_id', user.id)
           .eq('service', 'notion')
           .single()
         setNotionConnected(!!notionConn)
