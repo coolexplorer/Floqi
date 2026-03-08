@@ -382,7 +382,7 @@ describe("NewAutomationPage — TC-3001, TC-3002", () => {
       });
 
       // Still on step 1
-      expect(screen.getAllByText(/choose template/i).length).toBeGreaterThan(0);
+      expect(screen.getByRole('region', { name: /choose template/i })).toBeInTheDocument();
     });
 
     it("clicking Next with an empty name field shows validation error", async () => {

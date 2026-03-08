@@ -56,7 +56,7 @@ export function Sidebar({ currentPath, userName, userEmail, userAvatar, onLogout
 
   return (
     <aside
-      aria-label="Main navigation"
+      aria-label="Sidebar"
       className={`
         fixed left-0 top-0 h-screen bg-white border-r border-slate-200
         flex flex-col transition-all duration-normal ease-default
