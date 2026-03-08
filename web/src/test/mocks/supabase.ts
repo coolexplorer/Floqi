@@ -8,7 +8,7 @@ type ChainResult = { data: unknown; error: unknown }
  */
 export function makeChain(result: ChainResult = { data: null, error: null }) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {}
-  const methods = ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'neq', 'in', 'order', 'limit', 'single', 'maybeSingle']
+  const methods = ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'neq', 'in', 'order', 'limit', 'single', 'maybeSingle', 'range', 'ilike', 'gte', 'lte', 'gt', 'lt', 'is', 'filter', 'match', 'contains', 'or']
 
   for (const method of methods) {
     chain[method] = vi.fn().mockReturnValue(chain)

@@ -173,9 +173,12 @@ export default function AutomationDetailPage() {
               : e
           )
         )
+        setRunFeedback('cancelled')
+      } else {
+        setRunFeedback('cancel failed')
       }
     } catch {
-      // silently fail
+      setRunFeedback('cancel failed')
     }
     setCancelling(false)
   }

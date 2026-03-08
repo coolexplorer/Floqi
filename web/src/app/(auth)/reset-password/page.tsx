@@ -14,6 +14,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
+  const [expired, setExpired] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -22,8 +23,19 @@ export default function ResetPasswordPage() {
         setReady(true)
       }
     })
-    return () => subscription.unsubscribe()
-  }, [])
+    // Timeout: if PASSWORD_RECOVERY event doesn't fire within 10s, show error
+    const timeout = setTimeout(() => {
+      setExpired((prev) => {
+        // Only set expired if not already ready
+        if (!ready) return true
+        return prev
+      })
+    }, 10000)
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +61,11 @@ export default function ResetPasswordPage() {
             <h1 className="text-2xl font-semibold text-slate-900">Set new password</h1>
             <p className="mt-1 text-sm text-slate-500">Enter your new password below</p>
           </div>
-          {!ready ? (
+          {expired ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              This reset link has expired or is invalid. Please request a new one.
+            </div>
+          ) : !ready ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               Verifying your reset link...
             </div>
@@ -82,7 +98,7 @@ export default function ResetPasswordPage() {
             </form>
           )}
           <p className="mt-6 text-center text-sm text-slate-500">
-            <a href="/login" className="font-medium text-blue-600 hover:text-blue-700">Back to Sign In</a>
+            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-700">Back to Sign In</Link>
           </p>
         </div>
       </div>
