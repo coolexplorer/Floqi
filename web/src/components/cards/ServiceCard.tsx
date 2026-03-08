@@ -29,10 +29,20 @@ export interface ServiceCardProps {
 }
 
 const SCOPE_LABELS: Record<string, string> = {
+  // Google
   'https://www.googleapis.com/auth/gmail.readonly': 'Gmail 읽기',
   'https://www.googleapis.com/auth/gmail.send': 'Gmail 전송',
   'https://www.googleapis.com/auth/calendar.readonly': 'Calendar 읽기',
   'https://www.googleapis.com/auth/calendar': 'Calendar 관리',
+  // Notion
+  'read_content': 'Notion 읽기',
+  'update_content': 'Notion 쓰기',
+  // Slack
+  'channels:read': 'Slack 채널 읽기',
+  'chat:write': 'Slack 메시지 전송',
+  // GitHub
+  'repo': 'GitHub 저장소',
+  'read:user': 'GitHub 프로필',
 }
 
 function formatScope(scope: string): string {

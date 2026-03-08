@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { Sparkles, X, Menu } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { Button } from '../ui/Button'
@@ -68,7 +69,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <a
+          <Link
             href="/"
             aria-label="Floqi — go to homepage"
             className={cn(
@@ -95,7 +96,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
             >
               Floqi
             </span>
-          </a>
+          </Link>
 
           {/* Desktop nav */}
           <nav
@@ -103,7 +104,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
             aria-label="Main navigation"
           >
             {navLinks.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
@@ -116,7 +117,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                 )}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 
@@ -125,7 +126,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
 
           {/* Desktop CTA buttons */}
           <div className="hidden items-center gap-2 md:flex">
-            <a
+            <Link
               href="/login"
               className={cn(
                 'inline-flex h-9 items-center rounded-lg px-4 text-sm font-medium',
@@ -137,8 +138,8 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
               )}
             >
               Log in
-            </a>
-            <a
+            </Link>
+            <Link
               href="/signup"
               className={cn(
                 'inline-flex h-9 items-center rounded-lg px-4 text-sm font-medium',
@@ -148,8 +149,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
               )}
             >
               <span>Sign up</span>
-              <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
-            </a>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -189,7 +189,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
           >
             <div className="mx-auto max-w-6xl space-y-1 px-4 py-3 sm:px-6">
               {navLinks.map((link, index) => (
-                <a
+                <Link
                   key={link.href}
                   ref={index === 0 ? firstMenuLinkRef : undefined}
                   href={link.href}
@@ -204,10 +204,10 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                   )}
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
               <div className="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                <a
+                <Link
                   href="/login"
                   className={cn(
                     'flex h-10 items-center justify-center rounded-lg text-sm font-medium',
@@ -217,8 +217,8 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                   )}
                 >
                   Log in
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/signup"
                   className={cn(
                     'flex h-10 items-center justify-center rounded-lg text-sm font-medium',
@@ -228,8 +228,7 @@ export function TopNavBar({ transparent = false }: TopNavBarProps) {
                   )}
                 >
                   <span>Sign up</span>
-                  <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
-                </a>
+                </Link>
               </div>
             </div>
           </nav>

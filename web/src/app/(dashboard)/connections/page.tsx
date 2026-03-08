@@ -5,14 +5,12 @@ import { useRouter } from 'next/navigation';
 import { ServiceCard } from '@/components/cards/ServiceCard';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Card } from '@/components/ui/Card';
 import { createClient } from '@/lib/supabase/client';
 
 interface ConnectedService {
   id: string;
-  service_name: string;
-  connected_at: string;
+  provider: string;
+  created_at: string;
   scopes: string[];
   is_active?: boolean;
 }
@@ -32,7 +30,10 @@ export default function ConnectionsPage() {
   const [affectedCount, setAffectedCount] = useState(0);
   const [affectedAutomationIds, setAffectedAutomationIds] = useState<string[]>([]);
 
-  const googleConnection = connections.find((s) => s.service_name === 'google') ?? null;
+  const googleConnection = connections.find((s) => s.provider === 'google') ?? null;
+  const notionConnection = connections.find((s) => s.provider === 'notion') ?? null;
+  const slackConnection = connections.find((s) => s.provider === 'slack') ?? null;
+  const githubConnection = connections.find((s) => s.provider === 'github') ?? null;
 
   useEffect(() => {
     async function fetchConnections() {
@@ -61,6 +62,23 @@ export default function ConnectionsPage() {
 
   const handleConnect = () => {
     router.push('/api/auth/connect/google');
+  };
+
+  const handleConnectNotion = () => router.push('/api/auth/connect/notion');
+  const handleConnectSlack = () => router.push('/api/auth/connect/slack');
+  const handleConnectGithub = () => router.push('/api/auth/connect/github');
+
+  const handleDisconnectService = async (serviceId: string) => {
+    const supabase = createClient();
+    const { error: deleteError } = await supabase
+      .from('connected_services')
+      .delete()
+      .eq('id', serviceId);
+    if (deleteError) {
+      setError('Failed to disconnect service');
+      return;
+    }
+    setConnections((prev) => prev.filter((s) => s.id !== serviceId));
   };
 
   const handleDisconnectClick = async () => {
@@ -114,8 +132,32 @@ export default function ConnectionsPage() {
       </svg>
     ),
     connected: !!googleConnection,
-    connectedAt: googleConnection?.connected_at,
+    connectedAt: googleConnection?.created_at,
     scopes: googleConnection?.scopes,
+  };
+
+  const notionService = {
+    name: 'Notion',
+    logo: <span className="flex h-8 w-8 items-center justify-center rounded bg-slate-900 text-sm font-bold text-white">N</span>,
+    connected: !!notionConnection,
+    connectedAt: notionConnection?.created_at,
+    scopes: notionConnection?.scopes,
+  };
+
+  const slackService = {
+    name: 'Slack',
+    logo: <span className="flex h-8 w-8 items-center justify-center rounded bg-purple-600 text-sm font-bold text-white">S</span>,
+    connected: !!slackConnection,
+    connectedAt: slackConnection?.created_at,
+    scopes: slackConnection?.scopes,
+  };
+
+  const githubService = {
+    name: 'GitHub',
+    logo: <span className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-sm font-bold text-white">G</span>,
+    connected: !!githubConnection,
+    connectedAt: githubConnection?.created_at,
+    scopes: githubConnection?.scopes,
   };
 
   return (
@@ -124,13 +166,15 @@ export default function ConnectionsPage() {
       <div aria-hidden={showDisconnectModal}>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">Connections</h1>
-          <span id="add-integration-help" className="sr-only">Coming soon</span>
-          <Button variant="primary" disabled aria-describedby="add-integration-help">+ Add Integration</Button>
+          <div>
+            <span id="add-integration-help" className="sr-only">Coming soon</span>
+            <Button variant="primary" disabled aria-describedby="add-integration-help">+ Add Integration</Button>
+          </div>
         </div>
 
         {/* PM-03: Reconnection banners for inactive services */}
         {inactiveConnections.map((svc) => {
-          const displayName = svc.service_name.charAt(0).toUpperCase() + svc.service_name.slice(1);
+          const displayName = svc.provider.charAt(0).toUpperCase() + svc.provider.slice(1);
           return (
             <div
               key={`banner-${svc.id}`}
@@ -140,10 +184,10 @@ export default function ConnectionsPage() {
                 {displayName} 연결이 만료되었습니다
               </span>
               <a
-                href={`/api/auth/connect/${svc.service_name}`}
+                href={`/api/auth/connect/${svc.provider}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  router.push(`/api/auth/connect/${svc.service_name}`);
+                  router.push(`/api/auth/connect/${svc.provider}`);
                 }}
                 className="text-sm font-medium text-amber-700 underline hover:text-amber-900"
               >
@@ -159,28 +203,21 @@ export default function ConnectionsPage() {
             onConnect={handleConnect}
             onDisconnect={handleDisconnectClick}
           />
-          {[
-            { name: 'Notion', initial: 'N', bg: 'bg-slate-900', description: 'Save articles and notes automatically' },
-            { name: 'Slack', initial: 'S', bg: 'bg-purple-600', description: 'Send automation reports to channels' },
-            { name: 'GitHub', initial: 'G', bg: 'bg-slate-800', description: 'Track issues and pull requests' },
-          ].map((svc) => (
-            <Card key={svc.name} variant="elevated" padding="p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white" aria-hidden="true">
-                  <span className={`flex h-8 w-8 items-center justify-center rounded ${svc.bg} text-sm font-bold text-white`}>
-                    {svc.initial}
-                  </span>
-                </div>
-                <div className="flex flex-1 flex-col gap-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-slate-900">{svc.name}</span>
-                    <Badge variant="neutral" size="sm">Coming Soon</Badge>
-                  </div>
-                  <p className="text-xs text-slate-500">{svc.description}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
+          <ServiceCard
+            service={notionService}
+            onConnect={handleConnectNotion}
+            onDisconnect={() => notionConnection && handleDisconnectService(notionConnection.id)}
+          />
+          <ServiceCard
+            service={slackService}
+            onConnect={handleConnectSlack}
+            onDisconnect={() => slackConnection && handleDisconnectService(slackConnection.id)}
+          />
+          <ServiceCard
+            service={githubService}
+            onConnect={handleConnectGithub}
+            onDisconnect={() => githubConnection && handleDisconnectService(githubConnection.id)}
+          />
         </div>
       </div>
 

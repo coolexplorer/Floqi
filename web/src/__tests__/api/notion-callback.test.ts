@@ -21,7 +21,9 @@ import { NextRequest } from "next/server";
 import { GET } from "@/app/api/auth/connect/notion/callback/route";
 
 // Mock crypto module (AES-256-GCM encryption)
-const mockEncrypt = vi.fn();
+const { mockEncrypt } = vi.hoisted(() => ({
+  mockEncrypt: vi.fn(),
+}));
 vi.mock("@/lib/crypto", () => ({
   encrypt: mockEncrypt,
 }));
@@ -81,9 +83,7 @@ describe("GET /api/auth/connect/notion/callback", () => {
       Promise.resolve(`encrypted:${v}`)
     );
     mockFrom.mockReturnValue({
-      upsert: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
     });
   });
 
@@ -222,11 +222,7 @@ describe("GET /api/auth/connect/notion/callback", () => {
     });
 
     mockFrom.mockReturnValue({
-      upsert: vi.fn().mockReturnValue({
-        eq: vi
-          .fn()
-          .mockResolvedValue({ error: { message: "DB insert failed" } }),
-      }),
+      upsert: vi.fn().mockResolvedValue({ error: { message: "DB insert failed" } }),
     });
 
     const request = buildRequest(
@@ -242,7 +238,7 @@ describe("GET /api/auth/connect/notion/callback", () => {
   });
 
   // TC: Success upsert includes correct fields
-  it("upsert payload includes service_name 'notion' and encrypted_access_token", async () => {
+  it("upsert payload includes provider 'notion' and access_token_encrypted", async () => {
     const validState = "csrf-state-123";
 
     mockFetch.mockResolvedValueOnce({
@@ -256,9 +252,7 @@ describe("GET /api/auth/connect/notion/callback", () => {
         }),
     });
 
-    const mockUpsertFn = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
+    const mockUpsertFn = vi.fn().mockResolvedValue({ error: null });
     mockFrom.mockReturnValue({ upsert: mockUpsertFn });
 
     const request = buildRequest(
@@ -270,9 +264,13 @@ describe("GET /api/auth/connect/notion/callback", () => {
 
     expect(mockUpsertFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        service_name: "notion",
-        encrypted_access_token: "encrypted:ntn_access_token",
+        provider: "notion",
+        access_token_encrypted: "encrypted:ntn_access_token",
         user_id: "user-123",
+        is_active: true,
+      }),
+      expect.objectContaining({
+        onConflict: "user_id,provider",
       })
     );
   });

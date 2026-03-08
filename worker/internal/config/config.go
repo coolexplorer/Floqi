@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL        string
 	RedisAddr          string
 	RedisPassword      string
+	RedisTLS           bool
 	TokenEncryptionKey string
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -33,6 +34,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		RedisAddr:          os.Getenv("REDIS_ADDR"),
 		RedisPassword:      os.Getenv("REDIS_PASSWORD"),
+		RedisTLS:           os.Getenv("REDIS_TLS") == "true",
 		TokenEncryptionKey: os.Getenv("TOKEN_ENCRYPTION_KEY"),
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
