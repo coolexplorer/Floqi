@@ -25,6 +25,10 @@ FROM alpine:3.20
 # tzdata: needed for timezone-aware scheduling
 RUN apk --no-cache add ca-certificates tzdata
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 COPY --from=builder /floqi-worker /floqi-worker
+
+USER appuser
 
 ENTRYPOINT ["/floqi-worker"]

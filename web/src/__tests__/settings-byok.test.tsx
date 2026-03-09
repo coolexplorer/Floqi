@@ -41,10 +41,9 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
-const mockEncrypt = vi.fn().mockResolvedValue("encrypted:value");
-vi.mock("@/lib/crypto", () => ({
-  encrypt: (...args: unknown[]) => mockEncrypt(...args),
-}));
+// Mock global fetch for BYOK API calls
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +98,12 @@ describe("TC-7005: 유효한 API 키 등록", () => {
     });
   });
 
-  it("TC-7005: 유효한 API 키 입력 → 저장 → Anthropic 검증 성공 → DB 저장", async () => {
+  it("TC-7005: 유효한 API 키 입력 → 저장 → 서버 API 호출 성공", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
     render(<SettingsPage />);
 
     await waitFor(() => screen.getByLabelText(/api key|API 키/i));
@@ -112,16 +116,22 @@ describe("TC-7005: 유효한 API 키 등록", () => {
     );
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/byok",
         expect.objectContaining({
-          llm_provider: "byok",
-          llm_api_key_encrypted: "encrypted:value",
+          method: "POST",
+          body: JSON.stringify({ apiKey: "sk-ant-api03-valid-key-for-testing" }),
         })
       );
     });
   });
 
   it("TC-7005: 저장 성공 시 성공 메시지 표시", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
     render(<SettingsPage />);
 
     await waitFor(() => screen.getByLabelText(/api key|API 키/i));
@@ -259,14 +269,18 @@ describe("TC-7007: BYOK → Managed 모드 전환", () => {
 
 // ─── TC-7008: 암호화 저장 확인 ───────────────────────────────────────────────
 
-describe("TC-7008: 암호화 저장 확인", () => {
+describe("TC-7008: 암호화 저장 확인 (서버 사이드)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEncrypt.mockClear();
     setupUser({ llm_provider: "managed", llm_api_key_encrypted: null });
   });
 
-  it("TC-7008: API 키 저장 시 encrypt() 함수가 평문 키로 호출된다", async () => {
+  it("TC-7008: API 키 저장 시 서버 API로 전송된다 (클라이언트에서 encrypt 호출 안함)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
     render(<SettingsPage />);
 
     await waitFor(() => screen.getByLabelText(/api key|API 키/i));
@@ -279,12 +293,29 @@ describe("TC-7008: 암호화 저장 확인", () => {
     );
 
     await waitFor(() => {
-      expect(mockEncrypt).toHaveBeenCalledWith("sk-ant-api03-valid-key-for-testing");
+      // API key is sent to server-side route for encryption
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/byok",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ apiKey: "sk-ant-api03-valid-key-for-testing" }),
+        })
+      );
     });
+
+    // Client-side Supabase update should NOT be called (server handles it)
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        llm_api_key_encrypted: expect.any(String),
+      })
+    );
   });
 
-  it("TC-7008: 평문 키가 직접 DB에 전달되지 않음 (암호화된 값만 upsert)", async () => {
-    mockEncrypt.mockResolvedValue("encrypted:safe-value");
+  it("TC-7008: 평문 키가 직접 클라이언트 DB에 전달되지 않음 (서버에서 암호화)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
 
     render(<SettingsPage />);
 
@@ -298,17 +329,17 @@ describe("TC-7008: 암호화 저장 확인", () => {
     );
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          llm_api_key_encrypted: "encrypted:safe-value",
-        })
-      );
-      // 평문 키가 DB에 직접 전달되지 않았는지 확인
-      expect(mockUpdate).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          llm_api_key_encrypted: "sk-ant-api03-plaintext-key",
-        })
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/byok",
+        expect.any(Object)
       );
     });
+
+    // 평문 키가 클라이언트 DB에 직접 전달되지 않았는지 확인
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        llm_api_key_encrypted: "sk-ant-api03-plaintext-key",
+      })
+    );
   });
 });

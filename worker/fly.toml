@@ -8,29 +8,6 @@ primary_region = "nrt" # Tokyo, Japan (adjust as needed: sfo, ord, lhr, syd, etc
   dockerfile = "./Dockerfile"
 
 [env]
-  # ---- Database (Supabase PostgreSQL) ----
-  DATABASE_URL = "postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres"
-
-  # ---- Redis (Upstash) ----
-  REDIS_ADDR = "HOST.upstash.io:6379"
-  REDIS_PASSWORD = "PASSWORD"
-
-  # ---- Encryption ----
-  # Generate with: openssl rand -hex 32
-  TOKEN_ENCRYPTION_KEY = "your_64_hex_character_key_here"
-
-  # ---- LLM (Anthropic Claude) ----
-  ANTHROPIC_API_KEY = "sk-ant-YOUR_API_KEY"
-
-  # ---- Google OAuth ----
-  GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com"
-  GOOGLE_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
-
-  # ---- External APIs ----
-  NEWS_API_KEY = "YOUR_NEWS_API_KEY"
-  OPENWEATHERMAP_API_KEY = "YOUR_OPENWEATHERMAP_KEY"
-
-  # ---- Application Config ----
   LOG_LEVEL = "info"
   ENVIRONMENT = "production"
 

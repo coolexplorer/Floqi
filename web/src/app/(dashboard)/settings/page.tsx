@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { encrypt } from '@/lib/crypto';
+
 import { Modal } from '@/components/ui/Modal';
 
 const TIMEZONES = [
@@ -187,23 +187,26 @@ export default function SettingsPage() {
       return;
     }
 
-    const encrypted = await encrypt(apiKey);
+    try {
+      const res = await fetch('/api/account/byok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      });
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        llm_provider: 'byok',
-        llm_api_key_encrypted: encrypted,
-      })
-      .eq('id', userId!);
+      if (!res.ok) {
+        const data = await res.json();
+        setByokError(data.error || 'Failed to save API key');
+        setByokStatus('error');
+        return;
+      }
 
-    if (error) {
-      setByokStatus('error');
-    } else {
       setLlmProvider('byok');
       setApiKey('');
       setByokStatus('success');
+    } catch {
+      setByokError('Failed to save API key');
+      setByokStatus('error');
     }
   }
 

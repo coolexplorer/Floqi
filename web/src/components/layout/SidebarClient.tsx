@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from './Sidebar'
 
@@ -12,12 +12,11 @@ interface SidebarClientProps {
 
 export function SidebarClient({ userName, userEmail, userAvatar }: SidebarClientProps) {
   const pathname = usePathname()
-  const router = useRouter()
 
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   return (

@@ -114,18 +114,33 @@ describe("Rate Limiting Middleware", () => {
     );
   });
 
-  // TC: /api/auth/* excluded from rate limiting
-  it("/api/auth/* endpoints are excluded from rate limiting", async () => {
-    const request = buildRequest("/api/auth/connect/google", {
+  // TC: /api/auth/callback/* excluded from rate limiting (OAuth provider callbacks)
+  it("/api/auth/callback/* endpoints are excluded from rate limiting", async () => {
+    const request = buildRequest("/api/auth/callback/google", {
       ip: "1.2.3.4",
     });
     const response = await middleware(request);
 
-    // Rate limiter should NOT be called for auth endpoints
+    // Rate limiter should NOT be called for auth callback endpoints
     expect(mockRatelimit).not.toHaveBeenCalled();
 
     // Response should proceed normally (not 429)
     expect(response.status).not.toBe(429);
+  });
+
+  // TC: /api/auth/connect/* endpoints ARE rate limited (10 req/min)
+  it("/api/auth/connect/* endpoints are rate limited at 10 req/min", async () => {
+    const request = buildRequest("/api/auth/connect/google", {
+      ip: "1.2.3.4",
+    });
+    await middleware(request);
+
+    // Rate limiter should be called with auth-specific limit
+    expect(mockRatelimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 10,
+      })
+    );
   });
 
   // TC: X-Forwarded-For used for IP extraction
