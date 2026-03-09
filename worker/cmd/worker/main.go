@@ -31,6 +31,22 @@ import (
 
 var cancelFuncs sync.Map // automationID → context.CancelFunc
 
+var templateMaxTokens = map[string]int64{
+	"morning_briefing": 2048,
+	"email_triage":     1024,
+	"reading_digest":   2048,
+	"weekly_review":    2048,
+	"smart_save":       1024,
+}
+
+var templateModels = map[string]anthropic.Model{
+	"morning_briefing": anthropic.ModelClaudeSonnet4_6,
+	"email_triage":     anthropic.ModelClaudeHaiku4_5_20251001,
+	"reading_digest":   anthropic.ModelClaudeSonnet4_6,
+	"weekly_review":    anthropic.ModelClaudeSonnet4_6,
+	"smart_save":       anthropic.ModelClaudeHaiku4_5_20251001,
+}
+
 func main() {
 	// Configure structured logging
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -41,6 +57,13 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config")
+	}
+
+	// 1.1 Validate TOKEN_ENCRYPTION_KEY (fail-fast before any token operation)
+	if encKey := os.Getenv("TOKEN_ENCRYPTION_KEY"); encKey == "" {
+		log.Fatal().Msg("TOKEN_ENCRYPTION_KEY not set — cannot decrypt OAuth tokens")
+	} else if len(encKey) != 64 {
+		log.Fatal().Int("len", len(encKey)).Msg("TOKEN_ENCRYPTION_KEY must be 64 hex characters (32 bytes)")
 	}
 
 	// Initialize Sentry
@@ -100,9 +123,8 @@ func main() {
 	}
 	log.Info().Int("tools", len(registry.ListTools())).Msg("MCP Registry initialized")
 
-	// 6. Create Anthropic client + agent executor adapter
+	// 6. Create Anthropic client
 	anthropicCl := anthropic.NewClient(option.WithAPIKey(cfg.AnthropicAPIKey))
-	agentClient := &anthropicAdapter{client: &anthropicCl}
 
 	// 7. Create DBStore and runner function (executes an automation by ID)
 	dbStore := db.NewDBStore(pool)
@@ -123,6 +145,7 @@ func main() {
 		svc, svcErr := dbStore.GetConnectedServiceByProvider(ctx, autoCfg.UserID, "google")
 		var gmailToken, calendarToken string
 		if svcErr == nil && svc != nil {
+			oldExpiry := svc.ExpiresAt
 			googleClient := oauth.NewGoogleOAuthClient(cfg.GoogleClientID, cfg.GoogleClientSecret)
 			token, tokenErr := oauth.GetAccessTokenAndMarkExpiredOnFailure(ctx, pool, svc, googleClient)
 			if tokenErr != nil {
@@ -130,6 +153,17 @@ func main() {
 			} else {
 				gmailToken = token
 				calendarToken = token
+				// Persist refreshed tokens to DB if they were renewed
+				if !svc.ExpiresAt.Equal(oldExpiry) {
+					log.Info().
+						Str("user_id", autoCfg.UserID).
+						Time("old_expiry", oldExpiry).
+						Time("new_expiry", svc.ExpiresAt).
+						Msg("Google token refreshed, persisting to DB")
+					if dbErr := dbStore.UpdateServiceTokens(ctx, svc.ID, svc.AccessTokenEncrypted, svc.RefreshTokenEncrypted, svc.ExpiresAt); dbErr != nil {
+						log.Warn().Err(dbErr).Msg("failed to persist refreshed tokens")
+					}
+				}
 			}
 		}
 
@@ -145,7 +179,48 @@ func main() {
 			return nil, fmt.Errorf("create user registry: %w", registryErr)
 		}
 
-		return agent.ExecuteAutomation(ctx, agentClient, userRegistry, autoCfg.Prompt)
+		// Register auth error handler for tool-level 401 retry
+		userRegistry.SetAuthErrorHandler(func(retryCtx context.Context) (string, error) {
+			googleClient := oauth.NewGoogleOAuthClient(cfg.GoogleClientID, cfg.GoogleClientSecret)
+			// Re-fetch service to get latest tokens from DB
+			freshSvc, freshErr := dbStore.GetConnectedServiceByProvider(retryCtx, autoCfg.UserID, "google")
+			if freshErr != nil {
+				return "", freshErr
+			}
+			// Force refresh by zeroing expiry
+			freshSvc.ExpiresAt = time.Time{}
+			newToken, tokenErr := oauth.GetAccessTokenAndMarkExpiredOnFailure(retryCtx, pool, freshSvc, googleClient)
+			if tokenErr != nil {
+				return "", tokenErr
+			}
+			// Persist refreshed tokens
+			if dbErr := dbStore.UpdateServiceTokens(retryCtx, freshSvc.ID, freshSvc.AccessTokenEncrypted, freshSvc.RefreshTokenEncrypted, freshSvc.ExpiresAt); dbErr != nil {
+				log.Warn().Err(dbErr).Msg("failed to persist tokens during 401 retry")
+			}
+			return newToken, nil
+		})
+
+		model := anthropic.ModelClaudeSonnet4_6
+		maxTokens := int64(4096)
+		if m, ok := templateModels[autoCfg.TemplateType]; ok {
+			model = m
+		}
+		if mt, ok := templateMaxTokens[autoCfg.TemplateType]; ok {
+			maxTokens = mt
+		}
+		localClient := &anthropicAdapter{
+			client:    &anthropicCl,
+			model:     model,
+			maxTokens: maxTokens,
+		}
+
+		systemPrompt := agent.BuildSystemPrompt(agent.UserProfile{
+			Timezone:          "UTC",
+			PreferredLanguage: "ko",
+		}, autoCfg.TemplateType)
+
+		tools := userRegistry.ListToolsForTemplate(autoCfg.TemplateType)
+		return agent.ExecuteAutomation(ctx, localClient, userRegistry, systemPrompt, autoCfg.Prompt, tools)
 	}
 
 	// 8. Create AutomationQueue
@@ -266,10 +341,12 @@ func main() {
 
 // anthropicAdapter implements agent.AnthropicClient using the Anthropic Go SDK.
 type anthropicAdapter struct {
-	client *anthropic.Client
+	client    *anthropic.Client
+	model     anthropic.Model
+	maxTokens int64
 }
 
-func (a *anthropicAdapter) CreateMessage(ctx context.Context, messages []agent.ConversationTurn, tools []agent.ToolDef) (*agent.AnthropicMessage, error) {
+func (a *anthropicAdapter) CreateMessage(ctx context.Context, system string, messages []agent.ConversationTurn, tools []agent.ToolDef) (*agent.AnthropicMessage, error) {
 	sdkMessages, err := convertMessages(messages)
 	if err != nil {
 		return nil, fmt.Errorf("convert messages: %w", err)
@@ -282,6 +359,11 @@ func (a *anthropicAdapter) CreateMessage(ctx context.Context, messages []agent.C
 			if props, exists := schemaMap["properties"]; exists {
 				schema.Properties = props
 			}
+			if req, exists := schemaMap["required"]; exists {
+				if reqSlice, ok := req.([]string); ok {
+					schema.Required = reqSlice
+				}
+			}
 		}
 		tool := anthropic.ToolUnionParamOfTool(schema, t.Name)
 		if t.Description != "" {
@@ -290,12 +372,16 @@ func (a *anthropicAdapter) CreateMessage(ctx context.Context, messages []agent.C
 		sdkTools = append(sdkTools, tool)
 	}
 
-	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaudeSonnet4_6,
-		MaxTokens: 4096,
+	params := anthropic.MessageNewParams{
+		Model:     a.model,
+		MaxTokens: a.maxTokens,
 		Messages:  sdkMessages,
 		Tools:     sdkTools,
-	})
+	}
+	if system != "" {
+		params.System = []anthropic.TextBlockParam{{Text: system}}
+	}
+	resp, err := a.client.Messages.New(ctx, params)
 	if err != nil {
 		return nil, err
 	}

@@ -4,14 +4,14 @@ package agent
 // US-405: 스마트 자동 저장 자동화
 //
 // 구현 요구사항:
-//   - buildSystemPrompt("smart_save"): 자동 저장 관련 구체적 지시 포함
+//   - BuildSystemPrompt("smart_save"): 자동 저장 관련 구체적 지시 포함
 //     ("save", "저장", "Notion" 등 키워드 포함)
 //   - TC-4015: read_inbox(keyword query) → 키워드로 이메일 필터링
 //   - TC-4016: fetch_headlines(category) → 관심 분야 뉴스 기사 수집
 //   - TC-4017: create_notion_page(title, content) → 수집된 콘텐츠 Notion 저장
 //
 // FAILURES expected (Red phase):
-//   - buildSystemPrompt("smart_save"): 현재 default case 반환
+//   - BuildSystemPrompt("smart_save"): 현재 default case 반환
 //     → "You are a helpful AI assistant." 에 "save"/"저장"/"Notion" 없음 → TestSmartSave_SystemPrompt 실패
 
 import (
@@ -21,14 +21,14 @@ import (
 )
 
 // TestSmartSave_SystemPrompt는 "smart_save" 템플릿이 저장 관련 시스템 프롬프트를 생성하는지 검증한다.
-// FAIL expected (Red phase): buildSystemPrompt에 "smart_save" case가 없어 기본값 반환.
+// FAIL expected (Red phase): BuildSystemPrompt에 "smart_save" case가 없어 기본값 반환.
 func TestSmartSave_SystemPrompt(t *testing.T) {
 	profile := UserProfile{
 		Timezone:          "Asia/Seoul",
 		PreferredLanguage: "ko",
 	}
 
-	prompt := buildSystemPrompt(profile, "smart_save")
+	prompt := BuildSystemPrompt(profile, "smart_save")
 
 	// EXPECT: 자동 저장 관련 구체적 지시 포함 ("save" 또는 "저장")
 	// ACTUAL: default case → "You are a helpful AI assistant." → 실패
@@ -104,7 +104,9 @@ func TestSmartSave_FiltersEmailsByKeyword(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"AI 관련 이메일을 찾아서 Notion 데이터베이스(db-smart-save)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4015, TC-4017 검증 ─────────────────────────────────────────────────
@@ -217,7 +219,9 @@ func TestSmartSave_FetchesNewsAndSavesToNotion(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"오늘의 AI/기술 뉴스를 수집하여 Notion 데이터베이스(db-news)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4016~4017 검증 ─────────────────────────────────────────────────────
@@ -333,7 +337,9 @@ func TestSmartSave_SavesEmailsToNotion(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"AI 관련 뉴스레터를 Notion(db-smart-save)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// TC-4017: 에러 없음

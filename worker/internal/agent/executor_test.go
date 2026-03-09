@@ -16,7 +16,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ type mockAnthropicClient struct {
 
 func (m *mockAnthropicClient) CreateMessage(
 	ctx context.Context,
+	system string,
 	messages []ConversationTurn,
 	tools []ToolDef,
 ) (*AnthropicMessage, error) {
@@ -88,7 +91,7 @@ func TestExecuteAutomation_EndTurn(t *testing.T) {
 	}
 	registry := &mockToolRegistry{results: map[string]string{}}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Prepare morning briefing")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Prepare morning briefing", registry.ListTools())
 	if err != nil {
 		t.Fatalf("TC-5005: unexpected error: %v", err)
 	}
@@ -132,7 +135,7 @@ func TestExecuteAutomation_SingleToolUse(t *testing.T) {
 		},
 	}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Check my inbox")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Check my inbox", registry.ListTools())
 	if err != nil {
 		t.Fatalf("TC-5006: unexpected error: %v", err)
 	}
@@ -181,7 +184,7 @@ func TestExecuteAutomation_MultipleToolUse(t *testing.T) {
 		"send_email":  `"sent"`,
 	}}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Run morning briefing")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Run morning briefing", registry.ListTools())
 	if err != nil {
 		t.Fatalf("TC-5007: unexpected error: %v", err)
 	}
@@ -223,7 +226,7 @@ func TestExecuteAutomation_MaxIterationsExceeded(t *testing.T) {
 	client := &mockAnthropicClient{responses: responses}
 	registry := &mockToolRegistry{results: map[string]string{"read_inbox": `[]`}}
 
-	_, err := ExecuteAutomation(context.Background(), client, registry, "Loop forever")
+	_, err := ExecuteAutomation(context.Background(), client, registry, "", "Loop forever", registry.ListTools())
 	if err == nil {
 		t.Fatal("TC-5008: expected error for max iterations, got nil")
 	}
@@ -254,7 +257,7 @@ func TestExecuteAutomation_ToolExecutionError(t *testing.T) {
 	// 도구 실행 실패 설정
 	registry := &mockToolRegistry{err: errors.New("OAuth token expired")}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Check inbox")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Check inbox", registry.ListTools())
 	if err != nil {
 		t.Fatalf("TC-5009: unexpected top-level error (tool error should be passed to AI, not propagated): %v", err)
 	}
@@ -275,11 +278,98 @@ func TestExecuteAutomation_APITimeout(t *testing.T) {
 	}
 	registry := &mockToolRegistry{}
 
-	_, err := ExecuteAutomation(context.Background(), client, registry, "Run briefing")
+	_, err := ExecuteAutomation(context.Background(), client, registry, "", "Run briefing", registry.ListTools())
 	if err == nil {
 		t.Fatal("TC-5010: expected timeout error, got nil")
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("TC-5010: error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+// TestTruncateToolResult verifies boundary conditions and UTF-8 safety.
+func TestTruncateToolResult(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantFull   bool // expect no truncation
+		wantSuffix string
+	}{
+		{"short string", "hello", true, ""},
+		{"exactly 200 chars", strings.Repeat("a", 200), true, ""},
+		{"201 chars truncated", strings.Repeat("b", 201), false, "... [truncated]"},
+		{"long string", strings.Repeat("c", 500), false, "... [truncated]"},
+		{"empty string", "", true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateToolResult(tt.input)
+			if tt.wantFull {
+				if result != tt.input {
+					t.Errorf("expected no truncation, got %q", result)
+				}
+			} else {
+				if !strings.HasSuffix(result, tt.wantSuffix) {
+					t.Errorf("expected suffix %q, got %q", tt.wantSuffix, result)
+				}
+				if len(result) > 200+len("... [truncated]") {
+					t.Errorf("truncated result too long: %d chars", len(result))
+				}
+			}
+		})
+	}
+}
+
+// TestTruncateToolResult_UTF8 verifies multi-byte characters are not split.
+func TestTruncateToolResult_UTF8(t *testing.T) {
+	// Create a string with multi-byte Korean characters that would be split at byte 200
+	// Each Korean char is 3 bytes. 66 chars = 198 bytes. 67th char starts at byte 198, ends at 201.
+	korean := strings.Repeat("가", 67) // 201 bytes
+	result := truncateToolResult(korean)
+	if !strings.HasSuffix(result, "... [truncated]") {
+		t.Error("expected truncation for 201-byte Korean string")
+	}
+	// Verify the truncated part is valid UTF-8
+	prefix := strings.TrimSuffix(result, "... [truncated]")
+	if !utf8.ValidString(prefix) {
+		t.Errorf("truncated prefix is not valid UTF-8: %q", prefix)
+	}
+}
+
+// mockAnthropicClientWithCapture captures the system parameter for assertions.
+type mockAnthropicClientWithCapture struct {
+	response   *AnthropicMessage
+	lastSystem string
+}
+
+func (m *mockAnthropicClientWithCapture) CreateMessage(
+	ctx context.Context,
+	system string,
+	messages []ConversationTurn,
+	tools []ToolDef,
+) (*AnthropicMessage, error) {
+	m.lastSystem = system
+	return m.response, nil
+}
+
+// TestExecuteAutomation_SystemPromptForwarded verifies system prompt reaches the API client.
+func TestExecuteAutomation_SystemPromptForwarded(t *testing.T) {
+	client := &mockAnthropicClientWithCapture{
+		response: &AnthropicMessage{
+			StopReason:   "end_turn",
+			TextContent:  "done",
+			InputTokens:  10,
+			OutputTokens: 5,
+		},
+	}
+	registry := &mockToolRegistry{results: map[string]string{}}
+	tools := registry.ListTools()
+
+	_, err := ExecuteAutomation(context.Background(), client, registry, "You are a test assistant.", "Do something", tools)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.lastSystem != "You are a test assistant." {
+		t.Errorf("system = %q, want %q", client.lastSystem, "You are a test assistant.")
 	}
 }

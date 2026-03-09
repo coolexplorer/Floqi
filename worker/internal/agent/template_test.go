@@ -165,7 +165,9 @@ func TestMorningBriefing_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Good morning! Please prepare my morning briefing and send it to user@example.com.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4001~4004 검증 ─────────────────────────────────────────────────────
@@ -275,7 +277,9 @@ func TestMorningBriefing_GoogleDisconnected(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Good morning! Please prepare my morning briefing.",
+		registry.ListTools(),
 	)
 
 	// TC-4005: 최상위 에러 없음 (tool 에러는 AI에게 전달되어 처리됨)
@@ -371,7 +375,9 @@ func TestEmailTriage_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please triage my unread emails and classify them as Urgent, Important, or Reference.",
+		registry.ListTools(),
 	)
 
 	// TC-4006: 에러 없음
@@ -443,7 +449,9 @@ func TestEmailTriage_EmptyInbox(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please triage my unread emails.",
+		registry.ListTools(),
 	)
 
 	// TC-4008: 에러 없음
@@ -575,7 +583,9 @@ func TestReadingDigest_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please collect today's top technology news, summarize them, and save the digest to my Notion database (db-reading-digest).",
+		registry.ListTools(),
 	)
 
 	// ── TC-4009~4011 검증 ─────────────────────────────────────────────────────
@@ -692,7 +702,9 @@ func TestReadingDigest_NoNotion(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please collect tech news and save to my Notion.",
+		registry.ListTools(),
 	)
 
 	// TC-4011 edge: 최상위 에러 없음 (tool 에러는 AI에게 전달되어 처리됨)
