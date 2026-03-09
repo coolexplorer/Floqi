@@ -1,10 +1,16 @@
-name: CI
+name: Release
 
 on:
-  pull_request:
+  push:
     branches: [main]
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
+  # Re-use existing CI checks
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest
@@ -13,15 +19,12 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-
       - run: npm ci
-
       - run: npm run lint
       - run: npm run type-check
       - run: npm run test
@@ -35,11 +38,26 @@ jobs:
         working-directory: worker
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
           cache-dependency-path: worker/go.sum
-
       - run: go test ./... -v
       - run: go build -o /dev/null ./cmd/worker
+
+  release:
+    name: Semantic Release
+    needs: [web, worker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

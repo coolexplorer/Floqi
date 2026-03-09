@@ -25,3 +25,6 @@ logs/
 tmp/
 temp/
 worker/worker
+
+# Root dependencies (semantic-release)
+/node_modules/
