@@ -4,13 +4,13 @@ package agent
 // US-404: 주간 리뷰 자동화
 //
 // 구현 요구사항:
-//   - buildSystemPrompt("weekly_review"): 주간 리뷰 관련 구체적 지시 포함
+//   - BuildSystemPrompt("weekly_review"): 주간 리뷰 관련 구체적 지시 포함
 //     ("weekly", "주간", "7일", "past 7 days" 등 키워드 포함)
 //   - 실행 흐름: list_events(지난 7일 범위) → read_inbox(중요 이메일) → send_email(주간 요약)
 //   - list_events 호출 시 start_date / end_date 파라미터로 7일 범위 지정
 //
 // FAILURES expected (Red phase):
-//   - buildSystemPrompt("weekly_review"): 현재 default case 반환
+//   - BuildSystemPrompt("weekly_review"): 현재 default case 반환
 //     → "You are a helpful AI assistant." 에 "weekly"/"주간" 없음 → TestWeeklyReview_SystemPrompt 실패
 
 import (
@@ -21,14 +21,14 @@ import (
 )
 
 // TestWeeklyReview_SystemPrompt는 "weekly_review" 템플릿이 주간 리뷰 관련 시스템 프롬프트를 생성하는지 검증한다.
-// FAIL expected (Red phase): buildSystemPrompt에 "weekly_review" case가 없어 기본값 반환.
+// FAIL expected (Red phase): BuildSystemPrompt에 "weekly_review" case가 없어 기본값 반환.
 func TestWeeklyReview_SystemPrompt(t *testing.T) {
 	profile := UserProfile{
 		Timezone:          "Asia/Seoul",
 		PreferredLanguage: "ko",
 	}
 
-	prompt := buildSystemPrompt(profile, "weekly_review")
+	prompt := BuildSystemPrompt(profile, "weekly_review")
 
 	// EXPECT: 주간 리뷰 관련 구체적 지시 포함 ("weekly" 또는 "주간")
 	// ACTUAL: default case → "You are a helpful AI assistant." → 실패
@@ -146,6 +146,7 @@ func TestWeeklyReview_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"지난 한 주를 정리하여 주간 리뷰를 작성하고 user@example.com으로 발송해 주세요.",
 	)
 
@@ -271,6 +272,7 @@ func TestWeeklyReview_NoCalendarEvents(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"이번 주 활동을 정리하여 주간 리뷰를 작성해 주세요.",
 	)
 

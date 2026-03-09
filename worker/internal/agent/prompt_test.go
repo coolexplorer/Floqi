@@ -42,7 +42,7 @@ func TestBuildSystemPrompt_OutputFormat(t *testing.T) {
 				PreferredLanguage: "ko",
 				OutputFormat:      tt.outputFormat,
 			}
-			result := buildSystemPrompt(profile, "morning_briefing")
+			result := BuildSystemPrompt(profile, "morning_briefing")
 
 			if tt.wantNoContains {
 				if strings.Contains(result, tt.wantContains) {
@@ -63,7 +63,7 @@ func TestBuildSystemPrompt_ExistingBehavior(t *testing.T) {
 		PreferredLanguage: "en",
 		NewsCategories:    "technology,science",
 	}
-	result := buildSystemPrompt(profile, "morning_briefing")
+	result := BuildSystemPrompt(profile, "morning_briefing")
 
 	if !strings.Contains(result, "User timezone: America/New_York") {
 		t.Error("expected timezone in prompt")
@@ -73,5 +73,15 @@ func TestBuildSystemPrompt_ExistingBehavior(t *testing.T) {
 	}
 	if !strings.Contains(result, "news/category: technology, science") {
 		t.Error("expected news categories in prompt")
+	}
+}
+
+func TestBuildSystemPrompt_Conciseness(t *testing.T) {
+	profile := UserProfile{Timezone: "UTC", PreferredLanguage: "en"}
+	for _, tmpl := range []string{"morning_briefing", "email_triage", "reading_digest", "weekly_review", "smart_save"} {
+		result := BuildSystemPrompt(profile, tmpl)
+		if !strings.Contains(result, "Be concise") {
+			t.Errorf("template %q missing conciseness instruction", tmpl)
+		}
 	}
 }

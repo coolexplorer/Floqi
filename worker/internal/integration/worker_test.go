@@ -189,6 +189,7 @@ type stubAnthropicClient struct {
 
 func (c *stubAnthropicClient) CreateMessage(
 	_ context.Context,
+	_ string,
 	_ []agent.ConversationTurn,
 	_ []agent.ToolDef,
 ) (*agent.AnthropicMessage, error) {
@@ -405,7 +406,7 @@ func TestIntegration_TC5005_ExecuteAutomation_EndTurnNoTools(t *testing.T) {
 	}
 	registry := &stubToolRegistry{results: map[string]string{}}
 
-	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "Prepare morning briefing")
+	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Prepare morning briefing")
 	if err != nil {
 		t.Fatalf("TC-5005: unexpected error: %v", err)
 	}
@@ -452,7 +453,7 @@ func TestIntegration_TC5006_ExecuteAutomation_SingleToolRound(t *testing.T) {
 		},
 	}
 
-	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "Check urgent emails")
+	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Check urgent emails")
 	if err != nil {
 		t.Fatalf("TC-5006: unexpected error: %v", err)
 	}
@@ -509,7 +510,7 @@ func TestIntegration_TC5007_ExecuteAutomation_ThreeToolRounds(t *testing.T) {
 		},
 	}
 
-	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "Run morning briefing")
+	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Run morning briefing")
 	if err != nil {
 		t.Fatalf("TC-5007: unexpected error: %v", err)
 	}
@@ -558,7 +559,7 @@ func TestIntegration_TC5008_ExecuteAutomation_MaxIterationsExceeded(t *testing.T
 	client := &stubAnthropicClient{responses: responses}
 	registry := &stubToolRegistry{results: map[string]string{"read_inbox": `[]`}}
 
-	_, err := agent.ExecuteAutomation(context.Background(), client, registry, "Loop forever")
+	_, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Loop forever")
 	if err == nil {
 		t.Fatal("TC-5008: expected ErrMaxIterationsReached, got nil")
 	}
@@ -592,7 +593,7 @@ func TestIntegration_TC5009_ExecuteAutomation_ToolError_AIRecovers(t *testing.T)
 		execErr: errors.New("OAuth token expired"),
 	}
 
-	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "Check inbox")
+	result, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Check inbox")
 	if err != nil {
 		t.Fatalf("TC-5009: expected no top-level error (tool error should be forwarded as is_error), got: %v", err)
 	}
@@ -614,7 +615,7 @@ func TestIntegration_TC5010_ExecuteAutomation_APITimeout(t *testing.T) {
 	}
 	registry := &stubToolRegistry{}
 
-	_, err := agent.ExecuteAutomation(context.Background(), client, registry, "Run briefing")
+	_, err := agent.ExecuteAutomation(context.Background(), client, registry, "", "Run briefing")
 	if err == nil {
 		t.Fatal("TC-5010: expected timeout error, got nil")
 	}
@@ -686,7 +687,7 @@ func TestIntegration_TC5011_TC5012_FullPipeline_SuccessExecution(t *testing.T) {
 		if id != automationID {
 			return nil, fmt.Errorf("unexpected automation ID: %s", id)
 		}
-		return agent.ExecuteAutomation(ctx, aiClient, aiRegistry, "Run morning briefing")
+		return agent.ExecuteAutomation(ctx, aiClient, aiRegistry, "", "Run morning briefing")
 	}
 
 	logger := &captureLogger{idToReturn: "log-5011"}
@@ -820,7 +821,7 @@ func TestIntegration_TC5014_FullPipeline_ToolCallsMetadata(t *testing.T) {
 
 	var capturedResult *agent.ExecutionResult
 	runner := func(ctx context.Context, _ string) (*agent.ExecutionResult, error) {
-		result, err := agent.ExecuteAutomation(ctx, aiClient, aiRegistry, "Compile reading digest")
+		result, err := agent.ExecuteAutomation(ctx, aiClient, aiRegistry, "", "Compile reading digest")
 		if err == nil {
 			capturedResult = result
 		}

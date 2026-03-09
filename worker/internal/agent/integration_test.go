@@ -9,7 +9,7 @@ package agent
 //     - Timezone string           // 예: "Asia/Seoul", "UTC"
 //     - PreferredLanguage string  // 예: "ko", "en"
 //     - NewsCategories string     // 예: "technology,science"
-//   - buildSystemPrompt(profile UserProfile, templateType string) string
+//   - BuildSystemPrompt(profile UserProfile, templateType string) string
 //     - TC-7003: profile.Timezone = "Asia/Seoul" → 결과에 "User timezone: Asia/Seoul" 포함
 //     - TC-7010: profile.NewsCategories = "technology,science" → 결과에 "news/category: technology, science" 포함
 //     - templateType에 따라 프롬프트 내용이 달라짐
@@ -17,7 +17,7 @@ package agent
 //
 // FAILURES expected (Red phase):
 //   - UserProfile 타입 미정의 → 컴파일 에러
-//   - buildSystemPrompt 함수 미구현 → 컴파일 에러
+//   - BuildSystemPrompt 함수 미구현 → 컴파일 에러
 
 import (
 	"strings"
@@ -26,7 +26,7 @@ import (
 
 // ── TC-7003: 타임존 → AI 프롬프트 반영 ──────────────────────────────────────
 
-// TC-7003: timezone = "Asia/Seoul" → buildSystemPrompt에 "User timezone: Asia/Seoul" 포함
+// TC-7003: timezone = "Asia/Seoul" → BuildSystemPrompt에 "User timezone: Asia/Seoul" 포함
 func TestBuildSystemPrompt_TimezoneAsiaSoul(t *testing.T) {
 	// EXPECT: UserProfile 타입이 정의되어 있음
 	// ACTUAL: 미정의 → 컴파일 에러
@@ -35,9 +35,9 @@ func TestBuildSystemPrompt_TimezoneAsiaSoul(t *testing.T) {
 		PreferredLanguage: "ko",
 	}
 
-	// EXPECT: buildSystemPrompt 함수가 정의되어 있음
+	// EXPECT: BuildSystemPrompt 함수가 정의되어 있음
 	// ACTUAL: 미구현 → 컴파일 에러
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	if !strings.Contains(prompt, "User timezone: Asia/Seoul") {
 		t.Errorf("TC-7003: prompt does not contain 'User timezone: Asia/Seoul'\nprompt: %q", prompt)
@@ -51,7 +51,7 @@ func TestBuildSystemPrompt_TimezoneNewYork(t *testing.T) {
 		PreferredLanguage: "en",
 	}
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	if !strings.Contains(prompt, "User timezone: America/New_York") {
 		t.Errorf("TC-7003: prompt does not contain 'User timezone: America/New_York'\nprompt: %q", prompt)
@@ -65,7 +65,7 @@ func TestBuildSystemPrompt_EmptyTimezone_DefaultsToUTC(t *testing.T) {
 		PreferredLanguage: "en",
 	}
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	// 빈 타임존이면 UTC 기본값 사용
 	if !strings.Contains(prompt, "User timezone: UTC") {
@@ -73,7 +73,7 @@ func TestBuildSystemPrompt_EmptyTimezone_DefaultsToUTC(t *testing.T) {
 	}
 }
 
-// TC-7003: resolveLLMConfig 완료 후 buildSystemPrompt가 올바르게 동작 (통합)
+// TC-7003: resolveLLMConfig 완료 후 BuildSystemPrompt가 올바르게 동작 (통합)
 func TestBuildSystemPrompt_IntegratesWithLLMConfig(t *testing.T) {
 	profile := UserProfile{
 		Timezone:          "Asia/Seoul",
@@ -92,23 +92,23 @@ func TestBuildSystemPrompt_IntegratesWithLLMConfig(t *testing.T) {
 	}
 
 	// 타임존이 프롬프트에 포함되어야 함
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 	if !strings.Contains(prompt, "Asia/Seoul") {
 		t.Errorf("TC-7003: prompt missing timezone after LLM config resolution\nprompt: %q", prompt)
 	}
 }
 
-// TC-7003: buildSystemPrompt 결과가 비어 있지 않음
+// TC-7003: BuildSystemPrompt 결과가 비어 있지 않음
 func TestBuildSystemPrompt_ReturnsNonEmptyPrompt(t *testing.T) {
 	profile := UserProfile{
 		Timezone:          "Asia/Seoul",
 		PreferredLanguage: "ko",
 	}
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	if prompt == "" {
-		t.Error("TC-7003: buildSystemPrompt returned empty string")
+		t.Error("TC-7003: BuildSystemPrompt returned empty string")
 	}
 }
 
@@ -123,8 +123,8 @@ func TestBuildSystemPrompt_NewsCategories_InPrompt(t *testing.T) {
 	}
 
 	// EXPECT: "news/category: technology, science" 포함 (TC-7010 기대 결과)
-	// ACTUAL: buildSystemPrompt 미구현 → 컴파일 에러
-	prompt := buildSystemPrompt(profile, "reading_digest")
+	// ACTUAL: BuildSystemPrompt 미구현 → 컴파일 에러
+	prompt := BuildSystemPrompt(profile, "reading_digest")
 
 	if !strings.Contains(prompt, "news/category: technology, science") {
 		t.Errorf("TC-7010: prompt does not contain 'news/category: technology, science'\nprompt: %q", prompt)
@@ -138,7 +138,7 @@ func TestBuildSystemPrompt_PreferredLanguageKorean(t *testing.T) {
 		PreferredLanguage: "ko",
 	}
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	// "ko" 또는 "Korean" 중 하나가 포함되어야 함
 	if !strings.Contains(prompt, "ko") && !strings.Contains(prompt, "Korean") {
@@ -153,7 +153,7 @@ func TestBuildSystemPrompt_PreferredLanguageEnglish(t *testing.T) {
 		PreferredLanguage: "en",
 	}
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 
 	if !strings.Contains(prompt, "en") && !strings.Contains(prompt, "English") {
 		t.Errorf("TC-7010: prompt does not contain language preference for 'en'\nprompt: %q", prompt)
@@ -170,13 +170,13 @@ func TestBuildSystemPrompt_EmptyPreferences_NoError(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("TC-7010: buildSystemPrompt panicked with empty preferences: %v", r)
+			t.Errorf("TC-7010: BuildSystemPrompt panicked with empty preferences: %v", r)
 		}
 	}()
 
-	prompt := buildSystemPrompt(profile, "morning_briefing")
+	prompt := BuildSystemPrompt(profile, "morning_briefing")
 	if prompt == "" {
-		t.Error("TC-7010: buildSystemPrompt returned empty string for empty preferences")
+		t.Error("TC-7010: BuildSystemPrompt returned empty string for empty preferences")
 	}
 }
 
@@ -188,8 +188,8 @@ func TestBuildSystemPrompt_DifferentTemplates_DifferentPrompts(t *testing.T) {
 		NewsCategories:    "technology",
 	}
 
-	morningPrompt := buildSystemPrompt(profile, "morning_briefing")
-	digestPrompt := buildSystemPrompt(profile, "reading_digest")
+	morningPrompt := BuildSystemPrompt(profile, "morning_briefing")
+	digestPrompt := BuildSystemPrompt(profile, "reading_digest")
 
 	// 다른 템플릿은 서로 다른 프롬프트를 생성해야 함
 	if morningPrompt == digestPrompt {
@@ -205,7 +205,7 @@ func TestBuildSystemPrompt_AllPreferences_Included(t *testing.T) {
 		NewsCategories:    "technology,science",
 	}
 
-	prompt := buildSystemPrompt(profile, "reading_digest")
+	prompt := BuildSystemPrompt(profile, "reading_digest")
 
 	checks := []struct {
 		name    string

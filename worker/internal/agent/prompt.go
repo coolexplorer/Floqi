@@ -13,10 +13,10 @@ type UserProfile struct {
 	OutputFormat      string // e.g. "email", "notion", "both"
 }
 
-// buildSystemPrompt constructs a system prompt for the given templateType,
+// BuildSystemPrompt constructs a system prompt for the given templateType,
 // incorporating the user's timezone, language, and news category preferences.
 // If Timezone is empty, "UTC" is used as the default.
-func buildSystemPrompt(profile UserProfile, templateType string) string {
+func BuildSystemPrompt(profile UserProfile, templateType string) string {
 	tz := profile.Timezone
 	if tz == "" {
 		tz = "UTC"
@@ -58,6 +58,8 @@ func buildSystemPrompt(profile UserProfile, templateType string) string {
 		categories := strings.Join(strings.Split(profile.NewsCategories, ","), ", ")
 		fmt.Fprintf(&sb, "news/category: %s\n", categories)
 	}
+
+	sb.WriteString("Be concise. Output only the requested format. No preamble or filler.\n")
 
 	return sb.String()
 }

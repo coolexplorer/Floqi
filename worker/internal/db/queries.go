@@ -19,10 +19,11 @@ type DueAutomation struct {
 
 // AutomationConfig holds the automation configuration needed by the runner.
 type AutomationConfig struct {
-	ID     string
-	Name   string
-	Prompt string
-	UserID string
+	ID           string
+	Name         string
+	Prompt       string
+	UserID       string
+	TemplateType string
 }
 
 // DBStore implements all database operations needed by the worker.
@@ -122,6 +123,7 @@ func (s *DBStore) GetAutomationConfig(ctx context.Context, automationID string) 
 	if err != nil {
 		return nil, fmt.Errorf("get automation config %s: %w", automationID, err)
 	}
+	cfg.TemplateType = templateType
 	cfg.Prompt = buildPrompt(templateType, cfg.Name)
 	return &cfg, nil
 }
@@ -220,6 +222,20 @@ func (s *DBStore) GetConnectedServiceByProvider(ctx context.Context, userID, pro
 	return &svc, nil
 }
 
+// UpdateServiceTokens persists refreshed OAuth tokens back to the database.
+func (s *DBStore) UpdateServiceTokens(ctx context.Context, serviceID, accessTokenEncrypted, refreshTokenEncrypted string, expiresAt time.Time) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE connected_services
+		 SET access_token_encrypted = $1, refresh_token_encrypted = $2, token_expires_at = $3, updated_at = NOW()
+		 WHERE id = $4`,
+		accessTokenEncrypted, refreshTokenEncrypted, expiresAt, serviceID,
+	)
+	if err != nil {
+		return fmt.Errorf("update service tokens: %w", err)
+	}
+	return nil
+}
+
 // UpdateServiceIsActive updates the is_active field for a connected service.
 func (s *DBStore) UpdateServiceIsActive(ctx context.Context, serviceID string, isActive bool) error {
 	_, err := s.pool.Exec(ctx,
@@ -280,19 +296,32 @@ func (s *DBStore) IncrementExecutionCount(ctx context.Context, userID string, to
 }
 
 // buildPrompt constructs the LLM prompt for an automation based on its template type.
+// Prompts explicitly instruct the AI to use the available tools.
 func buildPrompt(templateType, name string) string {
 	switch templateType {
 	case "morning_briefing":
-		return "Summarize today's schedule, unread emails, and weather for the user as a morning briefing."
+		return `1. list_events: today's events (time_min=today 00:00, time_max=today 23:59, RFC3339)
+2. read_inbox: 10 recent emails
+3. get_weather: current weather for user's city
+4. send_email: compose and send morning briefing summary`
 	case "email_triage":
-		return "Review and classify the user's unread emails as urgent, important, or reference."
+		return `1. read_inbox: max_results=20
+2. Classify each email as Urgent/Important/Reference
+3. Return triage report`
 	case "reading_digest":
-		return "Compile a digest of recent news and articles matching the user's interests."
+		return `1. fetch_headlines: category="technology"
+2. fetch_headlines: category="business"
+3. Summarize top 5 articles from both categories`
 	case "weekly_review":
-		return "Summarize the user's activities, completed tasks, and key events from the past week."
+		return `1. list_events: this week Mon-Sun
+2. search_email: query="is:sent" for sent emails this week
+3. Compile weekly summary: activities, achievements, priorities`
 	case "smart_save":
-		return "Monitor and save relevant emails and news articles to the user's Notion workspace."
+		return `1. read_inbox: recent emails
+2. Identify important content worth saving
+3. create_notion_page: save each important item
+4. Return summary of saved items`
 	default:
-		return fmt.Sprintf("Execute the '%s' automation workflow.", name)
+		return fmt.Sprintf("Execute '%s' automation. Use available tools.", name)
 	}
 }

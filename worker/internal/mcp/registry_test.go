@@ -82,6 +82,50 @@ func TestRegistry_Execute_CreateEvent_InvalidTimes(t *testing.T) {
 	}
 }
 
+func TestRegistry_ListToolsForTemplate(t *testing.T) {
+	registry, _ := NewRegistry("", "", "", "", "")
+
+	tests := []struct {
+		template  string
+		wantCount int
+		wantNames []string
+	}{
+		{"email_triage", 2, []string{"read_inbox", "send_email"}},
+		{"morning_briefing", 4, []string{"read_inbox", "list_events", "get_weather", "send_email"}},
+		{"reading_digest", 3, []string{"fetch_headlines", "create_notion_page", "send_email"}},
+		{"weekly_review", 3, []string{"read_inbox", "list_events", "send_email"}},
+		{"smart_save", 3, []string{"read_inbox", "search_email", "create_notion_page"}},
+		{"unknown_template", 9, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.template, func(t *testing.T) {
+			tools := registry.ListToolsForTemplate(tt.template)
+			if len(tools) != tt.wantCount {
+				t.Errorf("ListToolsForTemplate(%q) returned %d tools, want %d", tt.template, len(tools), tt.wantCount)
+			}
+			if tt.wantNames != nil {
+				names := make([]string, len(tools))
+				for i, tool := range tools {
+					names[i] = tool.Name
+				}
+				for _, want := range tt.wantNames {
+					found := false
+					for _, got := range names {
+						if got == want {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("ListToolsForTemplate(%q) missing tool %q, got %v", tt.template, want, names)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestRegistry_ListTools_AllHaveDescriptions(t *testing.T) {
 	registry, _ := NewRegistry("", "", "", "", "")
 	tools := registry.ListTools()

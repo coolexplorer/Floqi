@@ -30,6 +30,7 @@ type mockAnthropicClient struct {
 
 func (m *mockAnthropicClient) CreateMessage(
 	ctx context.Context,
+	system string,
 	messages []ConversationTurn,
 	tools []ToolDef,
 ) (*AnthropicMessage, error) {
@@ -88,7 +89,7 @@ func TestExecuteAutomation_EndTurn(t *testing.T) {
 	}
 	registry := &mockToolRegistry{results: map[string]string{}}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Prepare morning briefing")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Prepare morning briefing")
 	if err != nil {
 		t.Fatalf("TC-5005: unexpected error: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestExecuteAutomation_SingleToolUse(t *testing.T) {
 		},
 	}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Check my inbox")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Check my inbox")
 	if err != nil {
 		t.Fatalf("TC-5006: unexpected error: %v", err)
 	}
@@ -181,7 +182,7 @@ func TestExecuteAutomation_MultipleToolUse(t *testing.T) {
 		"send_email":  `"sent"`,
 	}}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Run morning briefing")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Run morning briefing")
 	if err != nil {
 		t.Fatalf("TC-5007: unexpected error: %v", err)
 	}
@@ -223,7 +224,7 @@ func TestExecuteAutomation_MaxIterationsExceeded(t *testing.T) {
 	client := &mockAnthropicClient{responses: responses}
 	registry := &mockToolRegistry{results: map[string]string{"read_inbox": `[]`}}
 
-	_, err := ExecuteAutomation(context.Background(), client, registry, "Loop forever")
+	_, err := ExecuteAutomation(context.Background(), client, registry, "", "Loop forever")
 	if err == nil {
 		t.Fatal("TC-5008: expected error for max iterations, got nil")
 	}
@@ -254,7 +255,7 @@ func TestExecuteAutomation_ToolExecutionError(t *testing.T) {
 	// 도구 실행 실패 설정
 	registry := &mockToolRegistry{err: errors.New("OAuth token expired")}
 
-	result, err := ExecuteAutomation(context.Background(), client, registry, "Check inbox")
+	result, err := ExecuteAutomation(context.Background(), client, registry, "", "Check inbox")
 	if err != nil {
 		t.Fatalf("TC-5009: unexpected top-level error (tool error should be passed to AI, not propagated): %v", err)
 	}
@@ -275,7 +276,7 @@ func TestExecuteAutomation_APITimeout(t *testing.T) {
 	}
 	registry := &mockToolRegistry{}
 
-	_, err := ExecuteAutomation(context.Background(), client, registry, "Run briefing")
+	_, err := ExecuteAutomation(context.Background(), client, registry, "", "Run briefing")
 	if err == nil {
 		t.Fatal("TC-5010: expected timeout error, got nil")
 	}

@@ -165,6 +165,7 @@ func TestMorningBriefing_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Good morning! Please prepare my morning briefing and send it to user@example.com.",
 	)
 
@@ -275,6 +276,7 @@ func TestMorningBriefing_GoogleDisconnected(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Good morning! Please prepare my morning briefing.",
 	)
 
@@ -371,6 +373,7 @@ func TestEmailTriage_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please triage my unread emails and classify them as Urgent, Important, or Reference.",
 	)
 
@@ -443,6 +446,7 @@ func TestEmailTriage_EmptyInbox(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please triage my unread emails.",
 	)
 
@@ -575,6 +579,7 @@ func TestReadingDigest_E2E(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please collect today's top technology news, summarize them, and save the digest to my Notion database (db-reading-digest).",
 	)
 
@@ -692,6 +697,7 @@ func TestReadingDigest_NoNotion(t *testing.T) {
 		context.Background(),
 		client,
 		registry,
+		"",
 		"Please collect tech news and save to my Notion.",
 	)
 
