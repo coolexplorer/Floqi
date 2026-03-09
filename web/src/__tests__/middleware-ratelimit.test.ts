@@ -175,4 +175,32 @@ describe("Rate Limiting Middleware", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBeTruthy();
   });
+
+  // Boundary: exactly at limit (count === limit, remaining = 0, success = true)
+  it("request at exact rate limit boundary → succeeds with remaining=0", async () => {
+    mockRatelimit.mockResolvedValue({
+      success: true,
+      limit: 60,
+      remaining: 0,
+      reset: Date.now() + 60000,
+    });
+
+    const request = buildRequest("/api/automations", { ip: "1.2.3.4" });
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(429);
+    expect(response.headers.get("X-RateLimit-Remaining")).toBe("0");
+  });
+
+  // IP fallback when x-forwarded-for is absent
+  it("missing x-forwarded-for → falls back to 127.0.0.1", async () => {
+    const request = buildRequest("/api/automations");
+    await middleware(request);
+
+    expect(mockRatelimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ip: "127.0.0.1",
+      })
+    );
+  });
 });
