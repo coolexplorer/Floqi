@@ -5,9 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   # Re-use existing CI checks
@@ -49,6 +47,10 @@ jobs:
     name: Semantic Release
     needs: [web, worker]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
