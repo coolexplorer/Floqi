@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { computeNextRunAt } from '@/lib/cron'
+import { createAutomationSchema } from '@/lib/validation/schemas'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -13,26 +14,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const { name, description, template_type, config, schedule_cron, timezone, status } = body
-
-  const effectiveStatus = status ?? 'paused'
-  const tz = timezone ?? 'UTC'
+  const raw = await request.json()
+  const parsed = createAutomationSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 })
+  }
+  const { name, description, template_type, config, schedule_cron, timezone, status } = parsed.data
 
   const insertPayload: Record<string, unknown> = {
     user_id: user.id,
     name,
     description,
     template_type,
-    config: config ?? {},
+    config,
     schedule_cron,
-    timezone: tz,
-    status: effectiveStatus,
+    timezone,
+    status,
   }
 
   // Compute next_run_at when creating as active with a cron schedule
-  if (effectiveStatus === 'active' && schedule_cron) {
-    const nextRun = computeNextRunAt(schedule_cron, tz)
+  if (status === 'active' && schedule_cron) {
+    const nextRun = computeNextRunAt(schedule_cron, timezone)
     if (nextRun) {
       insertPayload.next_run_at = nextRun
     }

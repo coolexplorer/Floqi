@@ -17,19 +17,44 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
 
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as { client_reference_id?: string };
+      const session = event.data.object as { client_reference_id?: string; customer?: string };
       const userId = session.client_reference_id;
 
       if (userId) {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
         await supabase
           .from('profiles')
-          .update({ plan: 'pro' })
+          .update({ plan: 'pro', stripe_customer_id: session.customer as string })
           .eq('id', userId);
+      }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as { customer?: string };
+      const customerId = subscription.customer as string;
+
+      if (customerId) {
+        await supabase
+          .from('profiles')
+          .update({ plan: 'free' })
+          .eq('stripe_customer_id', customerId);
+      }
+    }
+
+    if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as { customer?: string };
+      const customerId = invoice.customer as string;
+
+      if (customerId) {
+        await supabase
+          .from('profiles')
+          .update({ plan: 'free' })
+          .eq('stripe_customer_id', customerId);
       }
     }
 

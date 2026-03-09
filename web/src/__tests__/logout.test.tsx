@@ -48,6 +48,15 @@ describe("Logout", () => {
   it("TC-1018: logout button click → signOut() called → redirect to /login", async () => {
     // Arrange — render SidebarClient (contains the logout button)
     mockSignOut.mockResolvedValueOnce({ error: null });
+
+    // Mock window.location.href (hard navigation)
+    const locationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
+    const mockLocation = { ...window.location, href: '' };
+    Object.defineProperty(window, 'location', {
+      value: mockLocation,
+      writable: true,
+    });
+
     render(
       <SidebarClient
         userName="Test User"
@@ -60,11 +69,16 @@ describe("Logout", () => {
       screen.getByRole("button", { name: /log out|sign out|logout/i })
     );
 
-    // Assert
+    // Assert — uses hard navigation (window.location.href) instead of router.push
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith("/login");
+      expect(window.location.href).toBe('/login');
     });
+
+    // Restore
+    if (locationDescriptor) {
+      Object.defineProperty(window, 'location', locationDescriptor);
+    }
   });
 });
 

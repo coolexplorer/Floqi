@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { computeNextRunAt } from '@/lib/cron'
+import { updateAutomationSchema } from '@/lib/validation/schemas'
 
 export async function PATCH(
   request: NextRequest,
@@ -17,7 +18,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
+  const raw = await request.json()
+  const parsed = updateAutomationSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 422 })
+  }
+  const body = parsed.data
   const updatePayload: Record<string, unknown> = {}
 
   if ('status' in body) updatePayload.status = body.status

@@ -4,10 +4,12 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Rate limiting for API routes (excluding auth endpoints)
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
+  // Rate limiting for API routes (excluding auth callback endpoints)
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/callback/')) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? '127.0.0.1';
-    const limit = pathname.startsWith('/api/webhooks/') ? 10 : 60;
+    const limit = pathname.startsWith('/api/webhooks/') ? 10
+      : pathname.startsWith('/api/auth/') ? 10
+      : 60;
 
     const { checkRateLimit } = await import("@/lib/ratelimit");
     const result = await checkRateLimit({ ip, limit });

@@ -46,6 +46,12 @@ export async function POST(
 ) {
   const { id } = await params
 
+  // Check Content-Length before reading body
+  const contentLength = parseInt(request.headers.get('content-length') ?? '0', 10);
+  if (contentLength > 102400) { // 100KB
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
+
   // 1. Validate HMAC signature first (security gate)
   const secret = process.env.WEBHOOK_SECRET
   if (!secret) {
@@ -54,6 +60,10 @@ export async function POST(
 
   const signature = request.headers.get('x-floqi-signature') ?? ''
   const payload = await request.text()
+
+  if (Buffer.byteLength(payload, 'utf-8') > 102400) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
 
   const isValid = await verifyHmacSignature(payload, signature, secret)
   if (!isValid) {

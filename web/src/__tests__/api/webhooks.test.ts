@@ -489,3 +489,115 @@ describe("TC-5025: Inactive automation → 400 Bad Request", () => {
     expect(typeof body.error).toBe("string");
   });
 });
+
+// ─── P1-9: Webhook Body Size Limit ────────────────────────────────────────────
+
+describe("Webhook Body Size Limit (P1-9)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+    // Automation exists in Supabase (same setup as TC-5022)
+    mockSingle.mockResolvedValue({
+      data: validAutomation,
+      error: null,
+    });
+
+    mockEnqueueAutomation.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    delete process.env.WEBHOOK_SECRET;
+  });
+
+  it("P1-9-1: Content-Length exactly 102400 → allowed (not rejected)", async () => {
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+        "content-length": "102400",
+      },
+      body: validPayload,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    // Exactly at the limit (not strictly greater than), so it should pass
+    expect(response.status).not.toBe(413);
+  });
+
+  it("P1-9-2: Content-Length 102401 → 413 Payload Too Large", async () => {
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+        "content-length": "102401",
+      },
+      body: validPayload,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    expect(response.status).toBe(413);
+    const body = await response.json();
+    expect(body).toHaveProperty("error");
+    expect(body.error).toMatch(/payload too large/i);
+  });
+
+  it("P1-9-3: missing Content-Length header with small body → allowed", async () => {
+    const signature = await generateHmacSignature(validPayload, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+        // No content-length header
+      },
+      body: validPayload,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    // Small body passes both Content-Length check (defaults to 0) and Buffer.byteLength check
+    expect(response.status).not.toBe(413);
+  });
+
+  it("P1-9-4: Content-Length spoofed as small (100) but actual body > 100KB → 413 from Buffer.byteLength check", async () => {
+    // Create a large body > 100KB
+    const largeBody = "x".repeat(102401);
+    const signature = await generateHmacSignature(largeBody, WEBHOOK_SECRET);
+
+    const request = new NextRequest(`${BASE_URL}/${AUTOMATION_ID}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-floqi-signature": signature,
+        "content-length": "100", // spoofed small Content-Length
+      },
+      body: largeBody,
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: AUTOMATION_ID }),
+    });
+
+    // The Content-Length check passes (100 <= 102400), but Buffer.byteLength check catches the real size
+    expect(response.status).toBe(413);
+    const body = await response.json();
+    expect(body).toHaveProperty("error");
+    expect(body.error).toMatch(/payload too large/i);
+  });
+});

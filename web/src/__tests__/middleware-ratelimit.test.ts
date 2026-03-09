@@ -114,18 +114,33 @@ describe("Rate Limiting Middleware", () => {
     );
   });
 
-  // TC: /api/auth/* excluded from rate limiting
-  it("/api/auth/* endpoints are excluded from rate limiting", async () => {
-    const request = buildRequest("/api/auth/connect/google", {
+  // TC: /api/auth/callback/* excluded from rate limiting (OAuth provider callbacks)
+  it("/api/auth/callback/* endpoints are excluded from rate limiting", async () => {
+    const request = buildRequest("/api/auth/callback/google", {
       ip: "1.2.3.4",
     });
     const response = await middleware(request);
 
-    // Rate limiter should NOT be called for auth endpoints
+    // Rate limiter should NOT be called for auth callback endpoints
     expect(mockRatelimit).not.toHaveBeenCalled();
 
     // Response should proceed normally (not 429)
     expect(response.status).not.toBe(429);
+  });
+
+  // TC: /api/auth/connect/* endpoints ARE rate limited (10 req/min)
+  it("/api/auth/connect/* endpoints are rate limited at 10 req/min", async () => {
+    const request = buildRequest("/api/auth/connect/google", {
+      ip: "1.2.3.4",
+    });
+    await middleware(request);
+
+    // Rate limiter should be called with auth-specific limit
+    expect(mockRatelimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 10,
+      })
+    );
   });
 
   // TC: X-Forwarded-For used for IP extraction
@@ -159,5 +174,33 @@ describe("Rate Limiting Middleware", () => {
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBeTruthy();
+  });
+
+  // Boundary: exactly at limit (count === limit, remaining = 0, success = true)
+  it("request at exact rate limit boundary → succeeds with remaining=0", async () => {
+    mockRatelimit.mockResolvedValue({
+      success: true,
+      limit: 60,
+      remaining: 0,
+      reset: Date.now() + 60000,
+    });
+
+    const request = buildRequest("/api/automations", { ip: "1.2.3.4" });
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(429);
+    expect(response.headers.get("X-RateLimit-Remaining")).toBe("0");
+  });
+
+  // IP fallback when x-forwarded-for is absent
+  it("missing x-forwarded-for → falls back to 127.0.0.1", async () => {
+    const request = buildRequest("/api/automations");
+    await middleware(request);
+
+    expect(mockRatelimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ip: "127.0.0.1",
+      })
+    );
   });
 });

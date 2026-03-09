@@ -94,8 +94,8 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
 
   try {
     return await checkUpstash(config, redisUrl);
-  } catch {
-    // Upstash unreachable → fall back to in-memory
-    return checkInMemory(config);
+  } catch (error) {
+    console.error('[RateLimit] Upstash Redis unreachable, allowing request conservatively', error);
+    return { success: true, limit: config.limit, remaining: 0, reset: Date.now() + 60000 };
   }
 }
