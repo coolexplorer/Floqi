@@ -162,13 +162,20 @@ var templateModels = map[string]anthropic.Model{
 }
 ```
 
-`anthropicAdapter` 구조체에 `model`과 `maxTokens` 필드를 추가하여, Runner가 실행 직전에 설정:
+`anthropicAdapter` 구조체에 `model`과 `maxTokens` 필드를 추가. **Race condition 방지를 위해 Runner가 매 실행마다 새 인스턴스를 생성**:
 
 ```go
 type anthropicAdapter struct {
     client    *anthropic.Client
     model     anthropic.Model
     maxTokens int64
+}
+
+// runner 클로저 내부 (매 실행마다 새 인스턴스)
+localClient := &anthropicAdapter{
+    client:    &anthropicCl,   // SDK 클라이언트는 공유 (thread-safe)
+    model:     model,          // 템플릿별 모델
+    maxTokens: maxTokens,      // 템플릿별 MaxTokens
 }
 ```
 
@@ -284,10 +291,15 @@ type AnthropicClient interface {
 func ExecuteAutomation(ctx, client, registry, prompt)
 
 // After
-func ExecuteAutomation(ctx, client, registry, system, prompt)
+func ExecuteAutomation(ctx, client, registry, system, prompt, tools []ToolDef)
 ```
 
-`system string` 파라미터가 `registry` 다음, `prompt` 앞에 추가되었다. 영향받는 호출처:
+변경 사항:
+- `system string` 파라미터 추가 (OPT-2)
+- `tools []ToolDef` 파라미터 추가 (OPT-1 실효성 확보) — 호출자가 사전 필터링된 도구 목록을 전달
+- 함수 내부에서 `registry.ListTools()` 호출 제거 → `tools` 파라미터 직접 사용
+
+영향받는 호출처:
 - `main.go` runner 클로저
 - 모든 테스트 파일 (8개)
 
@@ -359,6 +371,9 @@ Runner가 실행 직전에 `model`과 `maxTokens`를 설정하면, `CreateMessag
 | `TestRegistry_ListToolsForTemplate/smart_save` | ✅ | 3개 도구 반환 |
 | `TestRegistry_ListToolsForTemplate/unknown_template` | ✅ | 9개 전체 도구 반환 (fallback) |
 | `TestBuildSystemPrompt_Conciseness` | ✅ | 5개 템플릿 모두 "Be concise" 포함 |
+| `TestTruncateToolResult` | ✅ | 경계값 검증 (0, 200, 201, 500자) |
+| `TestTruncateToolResult_UTF8` | ✅ | 한국어 멀티바이트 문자 경계 안전성 검증 |
+| `TestExecuteAutomation_SystemPromptForwarded` | ✅ | system 파라미터가 CreateMessage에 전달됨 검증 |
 
 ### 5.2 기존 테스트 (인터페이스 변경 반영)
 
@@ -428,7 +443,32 @@ $ go test ./...    ✅ (전체 패키지 통과, 0 failures)
 
 ---
 
-## 8. 향후 개선 사항
+## 8. PR 리뷰 피드백 및 수정 사항
+
+### 8.1 CTO AI 리뷰 (CRITICAL)
+
+**이슈 1: OPT-1 도구 필터링 silent no-op**
+- **문제**: `ListToolsForTemplate()`이 구현되었지만 `executor.go` 내부에서 여전히 `registry.ListTools()`를 호출. `ToolRegistry` 인터페이스에 해당 메서드가 없어 호출 불가
+- **수정**: `ExecuteAutomation`에 `tools []ToolDef` 파라미터를 추가하여 호출자가 사전 필터링된 도구를 전달. `main.go` runner에서 `userRegistry.ListToolsForTemplate(autoCfg.TemplateType)` 호출 후 전달
+
+**이슈 2: anthropicAdapter race condition**
+- **문제**: `agentClient` 단일 인스턴스의 `model`/`maxTokens` 필드를 Asynq concurrency=10 환경에서 여러 goroutine이 동시 수정
+- **수정**: Runner 클로저에서 매 실행마다 `localClient := &anthropicAdapter{...}` 새 인스턴스 생성. SDK 클라이언트(`anthropicCl`)만 공유 (thread-safe)
+
+### 8.2 Test Engineer 리뷰 (REQUEST CHANGES)
+
+**이슈 1: `truncateToolResult` 직접 단위 테스트 부재**
+- **수정**: `TestTruncateToolResult` (경계값 5종) + `TestTruncateToolResult_UTF8` (한국어 멀티바이트) 추가
+
+**이슈 2: `system` 파라미터 전달 미검증**
+- **수정**: `mockAnthropicClientWithCapture` 타입 추가 + `TestExecuteAutomation_SystemPromptForwarded` 테스트로 system이 CreateMessage에 전달되는지 검증
+
+**이슈 3: UTF-8 경계 문제**
+- **수정**: `truncateToolResult`에서 `unicode/utf8` 패키지를 사용하여 rune 경계 안전 트렁케이션 구현
+
+---
+
+## 9. 향후 개선 사항
 
 ### 8.1 미구현 (OPT-7)
 - **BYOK 모델 선택권**: 사용자가 Settings UI에서 Haiku/Sonnet 선택 가능하도록

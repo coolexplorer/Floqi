@@ -123,13 +123,8 @@ func main() {
 	}
 	log.Info().Int("tools", len(registry.ListTools())).Msg("MCP Registry initialized")
 
-	// 6. Create Anthropic client + agent executor adapter
+	// 6. Create Anthropic client
 	anthropicCl := anthropic.NewClient(option.WithAPIKey(cfg.AnthropicAPIKey))
-	agentClient := &anthropicAdapter{
-		client:    &anthropicCl,
-		model:     anthropic.ModelClaudeSonnet4_6,
-		maxTokens: 4096,
-	}
 
 	// 7. Create DBStore and runner function (executes an automation by ID)
 	dbStore := db.NewDBStore(pool)
@@ -205,13 +200,18 @@ func main() {
 			return newToken, nil
 		})
 
-		agentClient.model = anthropic.ModelClaudeSonnet4_6
-		agentClient.maxTokens = 4096
+		model := anthropic.ModelClaudeSonnet4_6
+		maxTokens := int64(4096)
 		if m, ok := templateModels[autoCfg.TemplateType]; ok {
-			agentClient.model = m
+			model = m
 		}
 		if mt, ok := templateMaxTokens[autoCfg.TemplateType]; ok {
-			agentClient.maxTokens = mt
+			maxTokens = mt
+		}
+		localClient := &anthropicAdapter{
+			client:    &anthropicCl,
+			model:     model,
+			maxTokens: maxTokens,
 		}
 
 		systemPrompt := agent.BuildSystemPrompt(agent.UserProfile{
@@ -219,7 +219,8 @@ func main() {
 			PreferredLanguage: "ko",
 		}, autoCfg.TemplateType)
 
-		return agent.ExecuteAutomation(ctx, agentClient, userRegistry, systemPrompt, autoCfg.Prompt)
+		tools := userRegistry.ListToolsForTemplate(autoCfg.TemplateType)
+		return agent.ExecuteAutomation(ctx, localClient, userRegistry, systemPrompt, autoCfg.Prompt, tools)
 	}
 
 	// 8. Create AutomationQueue

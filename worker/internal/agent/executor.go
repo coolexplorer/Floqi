@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+	"unicode/utf8"
 )
 
 // Sentinel errors
@@ -87,13 +88,20 @@ func truncateToolResult(result string) string {
 	if len(result) <= maxToolResultLen {
 		return result
 	}
-	return result[:maxToolResultLen] + "... [truncated]"
+	// Truncate at rune boundary
+	truncated := result[:maxToolResultLen]
+	// If we split a multi-byte rune, back up to the last valid rune
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "... [truncated]"
 }
 
 // ExecuteAutomation runs the AI agent loop for the given prompt.
 // It calls the Anthropic API, handles tool_use blocks, and loops until
 // end_turn or MaxIterations is reached.
-func ExecuteAutomation(ctx context.Context, client AnthropicClient, registry ToolRegistry, system string, prompt string) (*ExecutionResult, error) {
+// The caller is responsible for providing the pre-filtered tools slice.
+func ExecuteAutomation(ctx context.Context, client AnthropicClient, registry ToolRegistry, system string, prompt string, tools []ToolDef) (*ExecutionResult, error) {
 	messages := []ConversationTurn{
 		{Role: "user", Content: prompt},
 	}
@@ -101,7 +109,7 @@ func ExecuteAutomation(ctx context.Context, client AnthropicClient, registry Too
 	result := &ExecutionResult{}
 
 	for i := 0; i < MaxIterations; i++ {
-		response, err := client.CreateMessage(ctx, system, messages, registry.ListTools())
+		response, err := client.CreateMessage(ctx, system, messages, tools)
 		if err != nil {
 			return nil, err
 		}

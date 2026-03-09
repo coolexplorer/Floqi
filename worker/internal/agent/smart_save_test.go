@@ -106,6 +106,7 @@ func TestSmartSave_FiltersEmailsByKeyword(t *testing.T) {
 		registry,
 		"",
 		"AI 관련 이메일을 찾아서 Notion 데이터베이스(db-smart-save)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4015, TC-4017 검증 ─────────────────────────────────────────────────
@@ -220,6 +221,7 @@ func TestSmartSave_FetchesNewsAndSavesToNotion(t *testing.T) {
 		registry,
 		"",
 		"오늘의 AI/기술 뉴스를 수집하여 Notion 데이터베이스(db-news)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4016~4017 검증 ─────────────────────────────────────────────────────
@@ -337,6 +339,7 @@ func TestSmartSave_SavesEmailsToNotion(t *testing.T) {
 		registry,
 		"",
 		"AI 관련 뉴스레터를 Notion(db-smart-save)에 저장해 주세요.",
+		registry.ListTools(),
 	)
 
 	// TC-4017: 에러 없음

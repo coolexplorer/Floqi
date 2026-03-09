@@ -148,6 +148,7 @@ func TestWeeklyReview_E2E(t *testing.T) {
 		registry,
 		"",
 		"지난 한 주를 정리하여 주간 리뷰를 작성하고 user@example.com으로 발송해 주세요.",
+		registry.ListTools(),
 	)
 
 	// ── TC-4012~4014 검증 ─────────────────────────────────────────────────────
@@ -274,6 +275,7 @@ func TestWeeklyReview_NoCalendarEvents(t *testing.T) {
 		registry,
 		"",
 		"이번 주 활동을 정리하여 주간 리뷰를 작성해 주세요.",
+		registry.ListTools(),
 	)
 
 	// TC-4012 edge: 에러 없음 (일정 없어도 정상 처리)
