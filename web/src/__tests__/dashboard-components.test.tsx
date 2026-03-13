@@ -210,26 +210,26 @@ describe('AutomationPerformance', () => {
 
 describe('TemplateDistribution', () => {
   it('renders PieChart with correct testid', () => {
-    render(<TemplateDistribution data={templateDistData} />)
+    render(<TemplateDistribution data={templateDistData} totalExecutions={40} />)
 
     expect(screen.getByTestId('template-distribution-chart')).toBeInTheDocument()
   })
 
   it('shows "Template Distribution" title', () => {
-    render(<TemplateDistribution data={templateDistData} />)
+    render(<TemplateDistribution data={templateDistData} totalExecutions={40} />)
 
     expect(screen.getByText(/Template Distribution/i)).toBeInTheDocument()
   })
 
   it('shows total executions count', () => {
     // total = 20 + 10 + 10 = 40
-    render(<TemplateDistribution data={templateDistData} />)
+    render(<TemplateDistribution data={templateDistData} totalExecutions={40} />)
 
     expect(screen.getByText('40')).toBeInTheDocument()
   })
 
   it('shows empty state when no data', () => {
-    render(<TemplateDistribution data={[]} />)
+    render(<TemplateDistribution data={[]} totalExecutions={0} />)
 
     expect(screen.getByText(/no data/i)).toBeInTheDocument()
   })
