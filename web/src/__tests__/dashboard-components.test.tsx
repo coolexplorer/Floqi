@@ -42,7 +42,8 @@ vi.mock('recharts', () => {
       React.createElement('div', { 'data-testid': `bar-${props.dataKey}` }),
     PieChart: ({ children }: any) =>
       React.createElement('div', { 'data-testid': 'pie-chart' }, children),
-    Pie: (props: any) => React.createElement('div', { 'data-testid': 'pie' }),
+    Pie: ({ children, ...props }: any) =>
+      React.createElement('div', { 'data-testid': 'pie' }, children),
     Cell: () => null,
     XAxis: () => null,
     YAxis: () => null,
@@ -50,6 +51,7 @@ vi.mock('recharts', () => {
     Tooltip: () => null,
     Legend: () => null,
     Label: () => null,
+    LabelList: () => null,
   }
 })
 
