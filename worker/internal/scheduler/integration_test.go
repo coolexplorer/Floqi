@@ -20,7 +20,7 @@ type syncedExecutionLogger struct {
 	latestLogID   string
 }
 
-func (s *syncedExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error) {
+func (s *syncedExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string, model string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.creates = append(s.creates, createLogCall{automationID: automationID, status: status})

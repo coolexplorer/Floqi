@@ -58,7 +58,7 @@ type CronStoreCompat interface {
 
 // ExecutionLoggerCompat는 scheduler.ExecutionLogger 인터페이스와 호환성 검증용 로컬 복사본.
 type ExecutionLoggerCompat interface {
-	CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error)
+	CreateExecutionLog(ctx context.Context, automationID string, status string, model string) (string, error)
 	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error
 	GetLatestLogID(ctx context.Context, automationID string) (string, error)
 }
@@ -122,7 +122,7 @@ func (m *mockDBStore) UpdateNextRunAt(ctx context.Context, automationID string, 
 	return nil
 }
 
-func (m *mockDBStore) CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error) {
+func (m *mockDBStore) CreateExecutionLog(ctx context.Context, automationID string, status string, model string) (string, error) {
 	if m.createLogErr != nil {
 		return "", m.createLogErr
 	}
@@ -276,7 +276,7 @@ func TestCreateExecutionLog_ReturnsLogID(t *testing.T) {
 	ctx := context.Background()
 
 	automationID := "auto-log-001"
-	logID, err := store.CreateExecutionLog(ctx, automationID, "running")
+	logID, err := store.CreateExecutionLog(ctx, automationID, "running", "claude-haiku-4-5")
 	if err != nil {
 		t.Fatalf("TC-DB-003: CreateExecutionLog returned error: %v", err)
 	}
