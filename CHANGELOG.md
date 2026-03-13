@@ -1,3 +1,9 @@
+## [0.3.0](https://github.com/coolexplorer/Floqi/compare/v0.2.0...v0.3.0) (2026-03-13)
+
+### Features
+
+* dashboard API endpoints + DB migration (Phase 1) ([#19](https://github.com/coolexplorer/Floqi/issues/19)) ([3fe167e](https://github.com/coolexplorer/Floqi/commit/3fe167e92d5cb82bc2325fa3f732821f68b70553))
+
 ## [0.2.0](https://github.com/coolexplorer/Floqi/compare/v0.1.0...v0.2.0) (2026-03-09)
 
 ### Features
