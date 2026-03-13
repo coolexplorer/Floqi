@@ -1,3 +1,9 @@
+## [0.5.0](https://github.com/coolexplorer/Floqi/compare/v0.4.0...v0.5.0) (2026-03-13)
+
+### Features
+
+* dashboard integration — page rebuild + 3 new components (Phase 3) ([#21](https://github.com/coolexplorer/Floqi/issues/21)) ([ffb13c9](https://github.com/coolexplorer/Floqi/commit/ffb13c9836a1e438c8af8d634cf928ba572d74aa))
+
 ## [0.4.0](https://github.com/coolexplorer/Floqi/compare/v0.3.0...v0.4.0) (2026-03-13)
 
 ### Features
