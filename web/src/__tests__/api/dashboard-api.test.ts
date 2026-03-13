@@ -1,5 +1,5 @@
 /**
- * Dashboard API Route Tests (TDD Red Phase)
+ * Dashboard API Route Tests
  *
  * Tests validate 5 dashboard API endpoints:
  * 1. GET /api/dashboard/stats — aggregate stats + trend deltas
@@ -27,7 +27,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 // ─── Helper: chainable Supabase query mock ────────────────────────────────────
 
-function makeChain(result: { data: unknown; error: unknown }) {
+function makeChain(result: Record<string, unknown>) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const self = () => chain;
   chain.select = vi.fn().mockImplementation(self);
@@ -49,7 +49,7 @@ function makeChain(result: { data: unknown; error: unknown }) {
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
   chain.then = vi.fn().mockImplementation(
     (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-      Promise.resolve(result).then(resolve, reject)
+      Promise.resolve(result).then(resolve, reject),
   );
   return chain;
 }
@@ -67,6 +67,7 @@ const mockAutomations = [
     status: 'active',
     schedule_cron: '0 8 * * *',
     next_run_at: '2026-03-14T08:00:00Z',
+    last_run_at: '2026-03-13T08:00:00Z',
   },
   {
     id: 'auto-2',
@@ -76,6 +77,7 @@ const mockAutomations = [
     status: 'active',
     schedule_cron: '0 9 * * *',
     next_run_at: '2026-03-14T09:00:00Z',
+    last_run_at: '2026-03-13T09:00:00Z',
   },
   {
     id: 'auto-3',
@@ -85,6 +87,7 @@ const mockAutomations = [
     status: 'paused',
     schedule_cron: '0 18 * * 5',
     next_run_at: null,
+    last_run_at: null,
   },
 ];
 
@@ -95,6 +98,7 @@ const mockExecutionLogs = [
     status: 'success',
     started_at: '2026-03-12T08:00:00Z',
     completed_at: '2026-03-12T08:00:12Z',
+    created_at: '2026-03-12T08:00:00Z',
     tokens_used: 1500,
     tool_calls: [
       { tool_name: 'calendar_list_events', duration_ms: 200 },
@@ -108,6 +112,7 @@ const mockExecutionLogs = [
     status: 'success',
     started_at: '2026-03-11T08:00:00Z',
     completed_at: '2026-03-11T08:00:10Z',
+    created_at: '2026-03-11T08:00:00Z',
     tokens_used: 1200,
     tool_calls: [{ tool_name: 'calendar_list_events', duration_ms: 180 }],
     error_message: null,
@@ -118,30 +123,24 @@ const mockExecutionLogs = [
     status: 'error',
     started_at: '2026-03-12T09:00:00Z',
     completed_at: '2026-03-12T09:00:05Z',
+    created_at: '2026-03-12T09:00:00Z',
     tokens_used: 800,
     tool_calls: [{ tool_name: 'gmail_read', duration_ms: 500 }],
     error_message: 'OAuth token expired',
   },
 ];
 
-const mockUsageTracking = [
-  {
-    id: 'usage-1',
-    user_id: USER_ID,
-    period_start: '2026-03-01',
-    executions_count: 45,
-    llm_tokens_total: 52000,
-    llm_cost_total: 1.56,
-  },
-  {
-    id: 'usage-2',
-    user_id: USER_ID,
-    period_start: '2026-02-01',
-    executions_count: 38,
-    llm_tokens_total: 44000,
-    llm_cost_total: 1.32,
-  },
-];
+const currentUsageData = {
+  executions_count: 45,
+  llm_tokens_total: 52000,
+  llm_cost_total: 1.56,
+};
+
+const prevUsageData = {
+  executions_count: 38,
+  llm_tokens_total: 44000,
+  llm_cost_total: 1.32,
+};
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -159,6 +158,14 @@ function mockUnauthenticated() {
   });
 }
 
+// ─── Reset helper ─────────────────────────────────────────────────────────────
+// Use mockReset (not mockClear) to clear mockReturnValueOnce queues
+function resetMocks() {
+  mockGetUser.mockReset();
+  mockFrom.mockReset();
+  mockRpc.mockReset();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. GET /api/dashboard/stats
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -172,8 +179,61 @@ describe('GET /api/dashboard/stats', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMocks();
   });
+
+  /**
+   * Stats route call order:
+   * 1. from('automations') → count query (head: true) → { count }
+   * 2. from('usage_tracking') → current month .single() → { data }
+   * 3. from('usage_tracking') → prev month .single() → { data }
+   * 4. from('automations') → id list → { data }
+   * 5. from('execution_logs') → current month logs → { data }
+   * 6. from('execution_logs') → prev month logs → { data }
+   */
+  function setupStatsMocks(opts: {
+    activeCount?: number;
+    currentUsage?: Record<string, unknown> | null;
+    prevUsage?: Record<string, unknown> | null;
+    automationIds?: { id: string }[];
+    currentLogs?: Record<string, unknown>[];
+    prevLogs?: Record<string, unknown>[];
+  } = {}) {
+    let automationsCall = 0;
+    let usageCall = 0;
+    let logsCall = 0;
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'automations') {
+        automationsCall++;
+        if (automationsCall === 1) {
+          return makeChain({ count: opts.activeCount ?? 0, data: null, error: null });
+        }
+        return makeChain({ data: opts.automationIds ?? [], error: null });
+      }
+      if (table === 'usage_tracking') {
+        usageCall++;
+        if (usageCall === 1) {
+          return makeChain({
+            data: opts.currentUsage ?? null,
+            error: opts.currentUsage ? null : { code: 'PGRST116' },
+          });
+        }
+        return makeChain({
+          data: opts.prevUsage ?? null,
+          error: opts.prevUsage ? null : { code: 'PGRST116' },
+        });
+      }
+      if (table === 'execution_logs') {
+        logsCall++;
+        if (logsCall === 1) {
+          return makeChain({ data: opts.currentLogs ?? [], error: null });
+        }
+        return makeChain({ data: opts.prevLogs ?? [], error: null });
+      }
+      return makeChain({ data: [], error: null });
+    });
+  }
 
   it('returns 401 when not authenticated', async () => {
     mockUnauthenticated();
@@ -188,14 +248,10 @@ describe('GET /api/dashboard/stats', () => {
 
   it('returns correct activeAutomations count', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'automations') {
-        return makeChain({
-          data: mockAutomations.filter((a) => a.status === 'active'),
-          error: null,
-        });
-      }
-      return makeChain({ data: [], error: null });
+    setupStatsMocks({
+      activeCount: 2,
+      currentUsage: currentUsageData,
+      automationIds: [{ id: 'auto-1' }, { id: 'auto-2' }],
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
@@ -208,17 +264,10 @@ describe('GET /api/dashboard/stats', () => {
 
   it('returns correct totalExecutions from usage_tracking', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'usage_tracking') {
-        return makeChain({
-          data: [mockUsageTracking[0]],
-          error: null,
-        });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations.filter((a) => a.status === 'active'), error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupStatsMocks({
+      activeCount: 2,
+      currentUsage: currentUsageData,
+      automationIds: [{ id: 'auto-1' }, { id: 'auto-2' }],
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
@@ -232,22 +281,16 @@ describe('GET /api/dashboard/stats', () => {
   it('returns correct successRate calculation', async () => {
     mockAuthenticated();
     const logsThisMonth = [
-      { status: 'success' },
-      { status: 'success' },
-      { status: 'success' },
-      { status: 'error' },
+      { status: 'success', started_at: '2026-03-12T08:00:00Z', completed_at: '2026-03-12T08:00:10Z' },
+      { status: 'success', started_at: '2026-03-12T09:00:00Z', completed_at: '2026-03-12T09:00:10Z' },
+      { status: 'success', started_at: '2026-03-12T10:00:00Z', completed_at: '2026-03-12T10:00:10Z' },
+      { status: 'error', started_at: '2026-03-12T11:00:00Z', completed_at: '2026-03-12T11:00:05Z' },
     ];
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({ data: logsThisMonth, error: null });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations.filter((a) => a.status === 'active'), error: null });
-      }
-      if (table === 'usage_tracking') {
-        return makeChain({ data: [mockUsageTracking[0]], error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupStatsMocks({
+      activeCount: 2,
+      currentUsage: currentUsageData,
+      automationIds: [{ id: 'auto-1' }, { id: 'auto-2' }],
+      currentLogs: logsThisMonth,
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
@@ -261,14 +304,8 @@ describe('GET /api/dashboard/stats', () => {
 
   it('returns correct totalTokens', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'usage_tracking') {
-        return makeChain({ data: [mockUsageTracking[0]], error: null });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: [], error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupStatsMocks({
+      currentUsage: currentUsageData,
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
@@ -281,18 +318,11 @@ describe('GET /api/dashboard/stats', () => {
 
   it('returns trend deltas (current vs previous month)', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'usage_tracking') {
-        // Return both months for trend calculation
-        return makeChain({ data: mockUsageTracking, error: null });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations.filter((a) => a.status === 'active'), error: null });
-      }
-      if (table === 'execution_logs') {
-        return makeChain({ data: [], error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupStatsMocks({
+      activeCount: 2,
+      currentUsage: currentUsageData,
+      prevUsage: prevUsageData,
+      automationIds: [{ id: 'auto-1' }, { id: 'auto-2' }],
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
@@ -300,16 +330,16 @@ describe('GET /api/dashboard/stats', () => {
 
     expect(response.status).toBe(200);
     const body = await response.json();
-    // Trend: (45 - 38) / 38 * 100 ≈ 18.4%
-    expect(body.executionsTrend).toBeDefined();
-    expect(typeof body.executionsTrend).toBe('number');
-    expect(body.tokensTrend).toBeDefined();
-    expect(typeof body.tokensTrend).toBe('number');
+    expect(body.trends).toBeDefined();
+    expect(body.trends.executionsDelta).toBe(45 - 38); // 7
+    expect(body.trends.tokensDelta).toBe(52000 - 44000); // 8000
+    expect(typeof body.trends.successRateDelta).toBe('number');
+    expect(typeof body.trends.costDelta).toBe('number');
   });
 
   it('returns 0s when no data exists', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation(() => makeChain({ data: [], error: null }));
+    setupStatsMocks();
 
     const request = new NextRequest('http://localhost/api/dashboard/stats');
     const response = await GET(request);
@@ -336,8 +366,27 @@ describe('GET /api/dashboard/charts', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMocks();
   });
+
+  /**
+   * Charts route call order:
+   * 1. from('automations') → user's automation IDs
+   * 2. from('execution_logs') → logs within date range
+   */
+  function setupChartsMocks(opts: {
+    automations?: { id: string }[];
+    logs?: Record<string, unknown>[];
+  } = {}) {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: opts.automations ?? [], error: null });
+      }
+      return makeChain({ data: opts.logs ?? [], error: null });
+    });
+  }
 
   it('returns 401 when not authenticated', async () => {
     mockUnauthenticated();
@@ -352,20 +401,14 @@ describe('GET /api/dashboard/charts', () => {
 
   it('returns daily execution trend data with success/error counts per day', async () => {
     mockAuthenticated();
-    const dailyLogs = [
-      { status: 'success', started_at: '2026-03-12T08:00:00Z', tokens_used: 1500 },
-      { status: 'success', started_at: '2026-03-12T09:00:00Z', tokens_used: 1200 },
-      { status: 'error', started_at: '2026-03-12T10:00:00Z', tokens_used: 800 },
-      { status: 'success', started_at: '2026-03-11T08:00:00Z', tokens_used: 1000 },
-    ];
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({ data: dailyLogs, error: null });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations, error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupChartsMocks({
+      automations: [{ id: 'auto-1' }, { id: 'auto-2' }],
+      logs: [
+        { status: 'success', created_at: '2026-03-12T08:00:00Z', tokens_used: 1500 },
+        { status: 'success', created_at: '2026-03-12T09:00:00Z', tokens_used: 1200 },
+        { status: 'error', created_at: '2026-03-12T10:00:00Z', tokens_used: 800 },
+        { status: 'success', created_at: '2026-03-11T08:00:00Z', tokens_used: 1000 },
+      ],
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/charts?days=30');
@@ -376,31 +419,23 @@ describe('GET /api/dashboard/charts', () => {
     expect(body.executionTrend).toBeDefined();
     expect(Array.isArray(body.executionTrend)).toBe(true);
 
-    // Should have entries with date, success, error counts
     const march12 = body.executionTrend.find(
-      (d: { date: string }) => d.date === '2026-03-12'
+      (d: { date: string }) => d.date === '2026-03-12',
     );
-    if (march12) {
-      expect(march12.success).toBe(2);
-      expect(march12.error).toBe(1);
-    }
+    expect(march12).toBeDefined();
+    expect(march12.success).toBe(2);
+    expect(march12.error).toBe(1);
   });
 
   it('returns token trend data grouped by model', async () => {
     mockAuthenticated();
-    const logsWithModel = [
-      { started_at: '2026-03-12T08:00:00Z', tokens_used: 1500, model: 'claude-sonnet-4-6' },
-      { started_at: '2026-03-12T09:00:00Z', tokens_used: 1200, model: 'claude-haiku-4-5' },
-      { started_at: '2026-03-11T08:00:00Z', tokens_used: 2000, model: 'claude-sonnet-4-6' },
-    ];
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({ data: logsWithModel, error: null });
-      }
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations, error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupChartsMocks({
+      automations: [{ id: 'auto-1' }, { id: 'auto-2' }],
+      logs: [
+        { status: 'success', created_at: '2026-03-12T08:00:00Z', tokens_used: 1500, model: 'claude-sonnet-4-6' },
+        { status: 'success', created_at: '2026-03-12T09:00:00Z', tokens_used: 1200, model: 'claude-haiku-4-5' },
+        { status: 'success', created_at: '2026-03-11T08:00:00Z', tokens_used: 2000, model: 'claude-sonnet-4-6' },
+      ],
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/charts?days=30');
@@ -410,25 +445,49 @@ describe('GET /api/dashboard/charts', () => {
     const body = await response.json();
     expect(body.tokenTrend).toBeDefined();
     expect(Array.isArray(body.tokenTrend)).toBe(true);
+
+    // March 12: sonnet 1500, haiku 1200
+    const march12 = body.tokenTrend.find((d: { date: string }) => d.date === '2026-03-12');
+    expect(march12).toBeDefined();
+    expect(march12.sonnetTokens).toBe(1500);
+    expect(march12.haikuTokens).toBe(1200);
+
+    // March 11: sonnet 2000, haiku 0
+    const march11 = body.tokenTrend.find((d: { date: string }) => d.date === '2026-03-11');
+    expect(march11).toBeDefined();
+    expect(march11.sonnetTokens).toBe(2000);
+    expect(march11.haikuTokens).toBe(0);
   });
 
   it('respects days query parameter', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation(() => makeChain({ data: [], error: null }));
+    setupChartsMocks({ automations: [{ id: 'auto-1' }], logs: [] });
 
     const request = new NextRequest('http://localhost/api/dashboard/charts?days=7');
     const response = await GET(request);
 
     expect(response.status).toBe(200);
     const body = await response.json();
-    // With 7 days, executionTrend should have at most 7 entries
     expect(body.executionTrend).toBeDefined();
     expect(body.executionTrend.length).toBeLessThanOrEqual(7);
   });
 
   it('returns empty arrays when no logs exist', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation(() => makeChain({ data: [], error: null }));
+    setupChartsMocks({ automations: [{ id: 'auto-1' }], logs: [] });
+
+    const request = new NextRequest('http://localhost/api/dashboard/charts?days=30');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.executionTrend).toEqual([]);
+    expect(body.tokenTrend).toEqual([]);
+  });
+
+  it('returns empty arrays when no automations exist', async () => {
+    mockAuthenticated();
+    setupChartsMocks({ automations: [] });
 
     const request = new NextRequest('http://localhost/api/dashboard/charts?days=30');
     const response = await GET(request);
@@ -453,8 +512,27 @@ describe('GET /api/dashboard/automations-performance', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMocks();
   });
+
+  /**
+   * Automations-performance route call order:
+   * 1. from('automations') → user's automations with details
+   * 2. from('execution_logs') → logs for those automations
+   */
+  function setupPerfMocks(opts: {
+    automations?: Record<string, unknown>[];
+    logs?: Record<string, unknown>[];
+  } = {}) {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: opts.automations ?? [], error: null });
+      }
+      return makeChain({ data: opts.logs ?? [], error: null });
+    });
+  }
 
   it('returns 401 when not authenticated', async () => {
     mockUnauthenticated();
@@ -469,14 +547,9 @@ describe('GET /api/dashboard/automations-performance', () => {
 
   it('returns per-automation success rates', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'automations') {
-        return makeChain({ data: mockAutomations.slice(0, 2), error: null });
-      }
-      if (table === 'execution_logs') {
-        return makeChain({ data: mockExecutionLogs, error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupPerfMocks({
+      automations: mockAutomations.slice(0, 2),
+      logs: mockExecutionLogs,
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/automations-performance');
@@ -487,34 +560,26 @@ describe('GET /api/dashboard/automations-performance', () => {
     expect(Array.isArray(body.automations)).toBe(true);
 
     const auto1 = body.automations.find(
-      (a: { automationId: string }) => a.automationId === 'auto-1'
+      (a: { id: string }) => a.id === 'auto-1',
     );
-    if (auto1) {
-      // auto-1 has 2 success, 0 error → 100% success rate
-      expect(auto1.successRate).toBe(100);
-      expect(auto1.name).toBe('Morning Briefing');
-    }
+    expect(auto1).toBeDefined();
+    // auto-1 has 2 success, 0 error → 100% success rate
+    expect(auto1.successRate).toBe(100);
+    expect(auto1.name).toBe('Morning Briefing');
 
     const auto2 = body.automations.find(
-      (a: { automationId: string }) => a.automationId === 'auto-2'
+      (a: { id: string }) => a.id === 'auto-2',
     );
-    if (auto2) {
-      // auto-2 has 0 success, 1 error → 0% success rate
-      expect(auto2.successRate).toBe(0);
-    }
+    expect(auto2).toBeDefined();
+    // auto-2 has 0 success, 1 error → 0% success rate
+    expect(auto2.successRate).toBe(0);
   });
 
   it('returns avgDurationMs and avgTokens', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'automations') {
-        return makeChain({ data: [mockAutomations[0]], error: null });
-      }
-      if (table === 'execution_logs') {
-        // auto-1: log-1 took 12s (12000ms), log-2 took 10s (10000ms)
-        return makeChain({ data: mockExecutionLogs.filter((l) => l.automation_id === 'auto-1'), error: null });
-      }
-      return makeChain({ data: [], error: null });
+    setupPerfMocks({
+      automations: [mockAutomations[0]],
+      logs: mockExecutionLogs.filter((l) => l.automation_id === 'auto-1'),
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/automations-performance');
@@ -523,19 +588,18 @@ describe('GET /api/dashboard/automations-performance', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     const auto1 = body.automations.find(
-      (a: { automationId: string }) => a.automationId === 'auto-1'
+      (a: { id: string }) => a.id === 'auto-1',
     );
-    if (auto1) {
-      // avg duration: (12000 + 10000) / 2 = 11000ms
-      expect(auto1.avgDurationMs).toBe(11000);
-      // avg tokens: (1500 + 1200) / 2 = 1350
-      expect(auto1.avgTokens).toBe(1350);
-    }
+    expect(auto1).toBeDefined();
+    // avg duration: (12000 + 10000) / 2 = 11000ms
+    expect(auto1.avgDurationMs).toBe(11000);
+    // avg tokens: (1500 + 1200) / 2 = 1350
+    expect(auto1.avgTokens).toBe(1350);
   });
 
   it('returns empty array when no automations', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation(() => makeChain({ data: [], error: null }));
+    setupPerfMocks({ automations: [] });
 
     const request = new NextRequest('http://localhost/api/dashboard/automations-performance');
     const response = await GET(request);
@@ -559,7 +623,7 @@ describe('GET /api/dashboard/tool-usage', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMocks();
   });
 
   it('returns 401 when not authenticated', async () => {
@@ -575,14 +639,32 @@ describe('GET /api/dashboard/tool-usage', () => {
 
   it('aggregates tool_calls JSONB correctly', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({ data: mockExecutionLogs, error: null });
-      }
-      if (table === 'automations') {
+    // Tool-usage route: 1. from('automations'), 2. from('execution_logs')
+    // The route uses toolName (camelCase) from JSONB
+    const logsWithToolNames = [
+      {
+        automation_id: 'auto-1',
+        tool_calls: [
+          { toolName: 'calendar_list_events' },
+          { toolName: 'gmail_read' },
+        ],
+      },
+      {
+        automation_id: 'auto-1',
+        tool_calls: [{ toolName: 'calendar_list_events' }],
+      },
+      {
+        automation_id: 'auto-2',
+        tool_calls: [{ toolName: 'gmail_read' }],
+      },
+    ];
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
         return makeChain({ data: mockAutomations, error: null });
       }
-      return makeChain({ data: [], error: null });
+      return makeChain({ data: logsWithToolNames, error: null });
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=30');
@@ -593,40 +675,35 @@ describe('GET /api/dashboard/tool-usage', () => {
     expect(body.tools).toBeDefined();
     expect(Array.isArray(body.tools)).toBe(true);
 
-    // calendar_list_events: used in log-1 and log-2 → count 2
+    // calendar_list_events: used in log 1 and log 2 → totalCalls 2
     const calendarTool = body.tools.find(
-      (t: { name: string }) => t.name === 'calendar_list_events'
+      (t: { toolName: string }) => t.toolName === 'calendar_list_events',
     );
-    if (calendarTool) {
-      expect(calendarTool.count).toBe(2);
-    }
+    expect(calendarTool).toBeDefined();
+    expect(calendarTool.totalCalls).toBe(2);
 
-    // gmail_read: used in log-1 and log-3 → count 2
+    // gmail_read: used in log 1 and log 3 → totalCalls 2
     const gmailTool = body.tools.find(
-      (t: { name: string }) => t.name === 'gmail_read'
+      (t: { toolName: string }) => t.toolName === 'gmail_read',
     );
-    if (gmailTool) {
-      expect(gmailTool.count).toBe(2);
-    }
+    expect(gmailTool).toBeDefined();
+    expect(gmailTool.totalCalls).toBe(2);
   });
 
   it('returns template distribution percentages', async () => {
     mockAuthenticated();
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({
-          data: [
-            { ...mockExecutionLogs[0], automation_id: 'auto-1' },
-            { ...mockExecutionLogs[1], automation_id: 'auto-1' },
-            { ...mockExecutionLogs[2], automation_id: 'auto-2' },
-          ],
-          error: null,
-        });
-      }
-      if (table === 'automations') {
+    const logs = [
+      { automation_id: 'auto-1', tool_calls: [] },
+      { automation_id: 'auto-1', tool_calls: [] },
+      { automation_id: 'auto-2', tool_calls: [] },
+    ];
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
         return makeChain({ data: mockAutomations, error: null });
       }
-      return makeChain({ data: [], error: null });
+      return makeChain({ data: logs, error: null });
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=30');
@@ -639,35 +716,24 @@ describe('GET /api/dashboard/tool-usage', () => {
 
     // morning_briefing: 2/3 executions ≈ 66.7%, email_triage: 1/3 ≈ 33.3%
     const morning = body.templateDistribution.find(
-      (t: { template: string }) => t.template === 'morning_briefing'
+      (t: { templateType: string }) => t.templateType === 'morning_briefing',
     );
-    if (morning) {
-      expect(morning.percentage).toBeCloseTo(66.7, 0);
-    }
+    expect(morning).toBeDefined();
+    expect(morning.percentage).toBeCloseTo(66.7, 0);
   });
 
   it('handles empty tool_calls', async () => {
     mockAuthenticated();
     const logsWithEmptyTools = [
-      {
-        id: 'log-empty',
-        automation_id: 'auto-1',
-        status: 'success',
-        started_at: '2026-03-12T08:00:00Z',
-        completed_at: '2026-03-12T08:00:01Z',
-        tokens_used: 100,
-        tool_calls: [],
-        error_message: null,
-      },
+      { automation_id: 'auto-1', tool_calls: [] },
     ];
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'execution_logs') {
-        return makeChain({ data: logsWithEmptyTools, error: null });
-      }
-      if (table === 'automations') {
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
         return makeChain({ data: mockAutomations, error: null });
       }
-      return makeChain({ data: [], error: null });
+      return makeChain({ data: logsWithEmptyTools, error: null });
     });
 
     const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=30');
@@ -692,7 +758,7 @@ describe('GET /api/dashboard/upcoming', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    resetMocks();
   });
 
   it('returns 401 when not authenticated', async () => {
@@ -706,14 +772,14 @@ describe('GET /api/dashboard/upcoming', () => {
     expect(body.error).toBeDefined();
   });
 
-  it('returns next 5 upcoming runs sorted by next_run_at', async () => {
+  it('returns next 5 upcoming runs sorted by nextRunAt', async () => {
     mockAuthenticated();
     const upcomingAutomations = [
-      { id: 'auto-1', name: 'Morning Briefing', template_type: 'morning_briefing', next_run_at: '2026-03-14T08:00:00Z', status: 'active' },
-      { id: 'auto-2', name: 'Email Triage', template_type: 'email_triage', next_run_at: '2026-03-14T09:00:00Z', status: 'active' },
-      { id: 'auto-4', name: 'Weekly Review', template_type: 'weekly_review', next_run_at: '2026-03-14T10:00:00Z', status: 'active' },
-      { id: 'auto-5', name: 'Smart Save', template_type: 'smart_save', next_run_at: '2026-03-14T11:00:00Z', status: 'active' },
-      { id: 'auto-6', name: 'Reading Digest 2', template_type: 'reading_digest', next_run_at: '2026-03-14T12:00:00Z', status: 'active' },
+      { id: 'auto-1', name: 'Morning Briefing', template_type: 'morning_briefing', next_run_at: '2026-03-14T08:00:00Z', schedule_cron: '0 8 * * *' },
+      { id: 'auto-2', name: 'Email Triage', template_type: 'email_triage', next_run_at: '2026-03-14T09:00:00Z', schedule_cron: '0 9 * * *' },
+      { id: 'auto-4', name: 'Weekly Review', template_type: 'weekly_review', next_run_at: '2026-03-14T10:00:00Z', schedule_cron: '0 10 * * *' },
+      { id: 'auto-5', name: 'Smart Save', template_type: 'smart_save', next_run_at: '2026-03-14T11:00:00Z', schedule_cron: '0 11 * * *' },
+      { id: 'auto-6', name: 'Reading Digest 2', template_type: 'reading_digest', next_run_at: '2026-03-14T12:00:00Z', schedule_cron: '0 12 * * *' },
     ];
     mockFrom.mockImplementation((table: string) => {
       if (table === 'automations') {
@@ -730,22 +796,27 @@ describe('GET /api/dashboard/upcoming', () => {
     expect(body.upcoming).toBeDefined();
     expect(body.upcoming.length).toBeLessThanOrEqual(5);
 
-    // Should be sorted by next_run_at ascending
+    // Response uses camelCase: nextRunAt
     for (let i = 1; i < body.upcoming.length; i++) {
-      const prev = new Date(body.upcoming[i - 1].next_run_at).getTime();
-      const curr = new Date(body.upcoming[i].next_run_at).getTime();
+      const prev = new Date(body.upcoming[i - 1].nextRunAt).getTime();
+      const curr = new Date(body.upcoming[i].nextRunAt).getTime();
       expect(curr).toBeGreaterThanOrEqual(prev);
     }
+
+    // Verify response shape
+    expect(body.upcoming[0].automationId).toBe('auto-1');
+    expect(body.upcoming[0].automationName).toBe('Morning Briefing');
+    expect(body.upcoming[0].templateType).toBe('morning_briefing');
   });
 
   it('only includes active automations', async () => {
     mockAuthenticated();
-    // Mix of active and paused — only active should be returned
     mockFrom.mockImplementation((table: string) => {
       if (table === 'automations') {
+        // The route already filters by status='active' and not-null next_run_at
         return makeChain({
           data: [
-            { id: 'auto-1', name: 'Morning Briefing', template_type: 'morning_briefing', next_run_at: '2026-03-14T08:00:00Z', status: 'active' },
+            { id: 'auto-1', name: 'Morning Briefing', template_type: 'morning_briefing', next_run_at: '2026-03-14T08:00:00Z', schedule_cron: '0 8 * * *' },
           ],
           error: null,
         });
@@ -758,12 +829,8 @@ describe('GET /api/dashboard/upcoming', () => {
 
     expect(response.status).toBe(200);
     const body = await response.json();
-    // All returned should be active
-    for (const item of body.upcoming) {
-      expect(item.status).toBeUndefined(); // status may not be in response, or if included:
-      // The query should have filtered by status='active'
-    }
     expect(body.upcoming.length).toBe(1);
+    expect(body.upcoming[0].automationId).toBe('auto-1');
   });
 
   it('returns empty when no upcoming runs', async () => {
