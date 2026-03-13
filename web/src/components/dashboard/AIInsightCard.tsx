@@ -31,14 +31,6 @@ function generateInsights(stats: AIInsightStats): string[] {
     )
   }
 
-  // Most active / most failed
-  if (stats.topAutomation) {
-    insights.push(`Most active automation: "${stats.topAutomation}".`)
-  }
-  if (stats.mostFailedAutomation) {
-    insights.push(`"${stats.mostFailedAutomation}" has the most failures — consider reviewing its configuration.`)
-  }
-
   // Cost summary
   if (stats.estimatedCost > 0) {
     const costPerExec =
@@ -50,6 +42,14 @@ function generateInsights(stats: AIInsightStats): string[] {
           : 'Token usage looks efficient.'
       }`
     )
+  }
+
+  // Most active / most failed
+  if (stats.topAutomation) {
+    insights.push(`Most active automation: "${stats.topAutomation}".`)
+  }
+  if (stats.mostFailedAutomation) {
+    insights.push(`"${stats.mostFailedAutomation}" has the most failures — consider reviewing its configuration.`)
   }
 
   return insights.slice(0, 3)
