@@ -1,3 +1,9 @@
+## [0.4.0](https://github.com/coolexplorer/Floqi/compare/v0.3.0...v0.4.0) (2026-03-13)
+
+### Features
+
+* recharts dashboard components (Phase 2) ([#20](https://github.com/coolexplorer/Floqi/issues/20)) ([6e11b59](https://github.com/coolexplorer/Floqi/commit/6e11b59d3b1831c7ca888e3d0531ae94b8074f0d))
+
 ## [0.3.0](https://github.com/coolexplorer/Floqi/compare/v0.2.0...v0.3.0) (2026-03-13)
 
 ### Features
