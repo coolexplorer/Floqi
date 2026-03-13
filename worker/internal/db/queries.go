@@ -71,11 +71,11 @@ func (s *DBStore) UpdateNextRunAt(ctx context.Context, automationID string, next
 }
 
 // CreateExecutionLog inserts a new execution log record and returns its ID.
-func (s *DBStore) CreateExecutionLog(ctx context.Context, automationID, status string) (string, error) {
+func (s *DBStore) CreateExecutionLog(ctx context.Context, automationID, status, model string) (string, error) {
 	var id string
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO execution_logs (automation_id, status) VALUES ($1, $2) RETURNING id`,
-		automationID, status,
+		`INSERT INTO execution_logs (automation_id, status, model) VALUES ($1, $2, $3) RETURNING id`,
+		automationID, status, model,
 	).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("create execution log: %w", err)

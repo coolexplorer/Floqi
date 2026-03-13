@@ -35,7 +35,7 @@ type updateLogCall struct {
 	retried        bool
 }
 
-func (m *mockExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error) {
+func (m *mockExecutionLogger) CreateExecutionLog(ctx context.Context, automationID string, status string, model string) (string, error) {
 	m.createCalls = append(m.createCalls, createLogCall{automationID: automationID, status: status})
 	id := m.logIDToReturn
 	if id == "" {

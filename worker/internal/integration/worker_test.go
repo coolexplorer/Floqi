@@ -132,7 +132,7 @@ type captureLogger struct {
 	latestLogID string
 }
 
-func (l *captureLogger) CreateExecutionLog(_ context.Context, automationID, status string) (string, error) {
+func (l *captureLogger) CreateExecutionLog(_ context.Context, automationID, status, model string) (string, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.creates = append(l.creates, createCall{automationID: automationID, status: status})

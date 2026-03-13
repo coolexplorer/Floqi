@@ -47,8 +47,10 @@ function makeChain(result: { data: unknown; error: unknown }) {
   chain.limit = vi.fn().mockImplementation(self);
   chain.single = vi.fn().mockResolvedValue(result);
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
-  chain.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-    Promise.resolve(result).then(resolve, reject);
+  chain.then = vi.fn().mockImplementation(
+    (resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
+      Promise.resolve(result).then(resolve, reject)
+  );
   return chain;
 }
 

@@ -16,7 +16,7 @@ type RunnerFunc func(ctx context.Context, automationID string) (*agent.Execution
 
 // ExecutionLogger records the lifecycle of each automation execution in the database.
 type ExecutionLogger interface {
-	CreateExecutionLog(ctx context.Context, automationID string, status string) (string, error)
+	CreateExecutionLog(ctx context.Context, automationID string, status string, model string) (string, error)
 	UpdateExecutionLog(ctx context.Context, logID string, status string, output string, errorMsg string, toolCallsJSON []byte, tokensUsed int, retried bool) error
 	GetLatestLogID(ctx context.Context, automationID string) (string, error)
 }
@@ -75,9 +75,10 @@ func (w *AutomationWorker) handleAutomationRun(ctx context.Context, task *asynq.
 	retryCount := w.getRetryCount(ctx)
 	retried := retryCount > 0
 
+	const defaultModel = "claude-haiku-4-5"
 	var logID string
 	if retryCount == 0 {
-		logID, _ = w.logger.CreateExecutionLog(ctx, automationID, "running")
+		logID, _ = w.logger.CreateExecutionLog(ctx, automationID, "running", defaultModel)
 	} else {
 		logID, _ = w.logger.GetLatestLogID(ctx, automationID)
 	}
