@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
-const MODEL_RATES: Record<string, { input: number; output: number }> = {
-  'claude-haiku-4-5': { input: 0.80, output: 4.00 },
-  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
-}
-
-function estimateCost(tokens: number, model?: string): number {
-  const rate = MODEL_RATES[model || 'claude-haiku-4-5'] || MODEL_RATES['claude-haiku-4-5']
-  const inputTokens = tokens * 0.75
-  const outputTokens = tokens * 0.25
-  return (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000
-}
+import { estimateCost } from '@/lib/cost'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -21,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const days = parseInt(searchParams.get('days') || '30', 10)
+  const days = Math.min(Math.max(parseInt(searchParams.get('days') || '30', 10) || 30, 1), 365)
 
   const { data: automations } = await supabase
     .from('automations')

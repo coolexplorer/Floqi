@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const { searchParams } = new URL(request.url)
+  const days = Math.min(Math.max(parseInt(searchParams.get('days') || '30', 10) || 30, 1), 365)
 
   const { data: automations } = await supabase
     .from('automations')
@@ -18,11 +21,13 @@ export async function GET(_request: NextRequest) {
   }
 
   const automationIds = automations.map(a => a.id)
+  const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: logs } = await supabase
     .from('execution_logs')
     .select('automation_id, status, started_at, completed_at, tokens_used')
     .in('automation_id', automationIds)
+    .gte('created_at', sinceDate)
     .in('status', ['success', 'error'])
 
   const logsByAutomation = new Map<string, typeof logs>()

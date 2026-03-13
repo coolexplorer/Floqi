@@ -101,8 +101,8 @@ const mockExecutionLogs = [
     created_at: '2026-03-12T08:00:00Z',
     tokens_used: 1500,
     tool_calls: [
-      { tool_name: 'calendar_list_events', duration_ms: 200 },
-      { tool_name: 'gmail_read', duration_ms: 300 },
+      { toolName: 'calendar_list_events', duration: 200, status: 'success' },
+      { toolName: 'gmail_read', duration: 300, status: 'success' },
     ],
     error_message: null,
   },
@@ -114,7 +114,7 @@ const mockExecutionLogs = [
     completed_at: '2026-03-11T08:00:10Z',
     created_at: '2026-03-11T08:00:00Z',
     tokens_used: 1200,
-    tool_calls: [{ tool_name: 'calendar_list_events', duration_ms: 180 }],
+    tool_calls: [{ toolName: 'calendar_list_events', duration: 180, status: 'success' }],
     error_message: null,
   },
   {
@@ -125,7 +125,7 @@ const mockExecutionLogs = [
     completed_at: '2026-03-12T09:00:05Z',
     created_at: '2026-03-12T09:00:00Z',
     tokens_used: 800,
-    tool_calls: [{ tool_name: 'gmail_read', duration_ms: 500 }],
+    tool_calls: [{ toolName: 'gmail_read', duration: 500, status: 'error' }],
     error_message: 'OAuth token expired',
   },
 ];
@@ -350,6 +350,32 @@ describe('GET /api/dashboard/stats', () => {
     expect(body.totalExecutions).toBe(0);
     expect(body.successRate).toBe(0);
     expect(body.totalTokens).toBe(0);
+    expect(body.estimatedCost).toBe(0);
+    expect(body.avgDurationMs).toBe(0);
+  });
+
+  it('returns estimatedCost and avgDurationMs', async () => {
+    mockAuthenticated();
+    const logsThisMonth = [
+      { status: 'success', started_at: '2026-03-12T08:00:00Z', completed_at: '2026-03-12T08:00:10Z' },
+      { status: 'success', started_at: '2026-03-12T09:00:00Z', completed_at: '2026-03-12T09:00:06Z' },
+    ];
+    setupStatsMocks({
+      activeCount: 1,
+      currentUsage: currentUsageData,
+      automationIds: [{ id: 'auto-1' }],
+      currentLogs: logsThisMonth,
+    });
+
+    const request = new NextRequest('http://localhost/api/dashboard/stats');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    // estimatedCost should be > 0 when tokens exist
+    expect(body.estimatedCost).toBeGreaterThan(0);
+    // avgDurationMs: (10000 + 6000) / 2 = 8000
+    expect(body.avgDurationMs).toBe(8000);
   });
 });
 
@@ -743,6 +769,66 @@ describe('GET /api/dashboard/tool-usage', () => {
     const body = await response.json();
     expect(body.tools).toEqual([]);
   });
+
+  it('handles null tool_calls JSONB', async () => {
+    mockAuthenticated();
+    const logsWithNullTools = [
+      { automation_id: 'auto-1', tool_calls: null },
+    ];
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: mockAutomations, error: null });
+      }
+      return makeChain({ data: logsWithNullTools, error: null });
+    });
+
+    const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=30');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.tools).toEqual([]);
+  });
+
+  it('uses default 30 days for invalid days parameter', async () => {
+    mockAuthenticated();
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: [], error: null });
+      }
+      return makeChain({ data: [], error: null });
+    });
+
+    // NaN days should default to 30
+    const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=abc');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.tools).toEqual([]);
+    expect(body.templateDistribution).toEqual([]);
+  });
+
+  it('clamps negative days to 1', async () => {
+    mockAuthenticated();
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return makeChain({ data: [{ id: 'auto-1', template_type: 'morning_briefing' }], error: null });
+      }
+      return makeChain({ data: [], error: null });
+    });
+
+    const request = new NextRequest('http://localhost/api/dashboard/tool-usage?days=-5');
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -843,5 +929,19 @@ describe('GET /api/dashboard/upcoming', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.upcoming).toEqual([]);
+  });
+
+  it('returns 500 when Supabase query fails', async () => {
+    mockAuthenticated();
+    mockFrom.mockImplementation(() =>
+      makeChain({ data: null, error: { message: 'DB connection failed' } }),
+    );
+
+    const request = new NextRequest('http://localhost/api/dashboard/upcoming');
+    const response = await GET(request);
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toBe('DB connection failed');
   });
 });
