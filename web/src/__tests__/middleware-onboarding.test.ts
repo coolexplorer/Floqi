@@ -135,6 +135,30 @@ describe("Middleware: 온보딩 리다이렉트 (쿠키 기반)", () => {
     expect(response.headers.get("location")).toContain("/dashboard");
   });
 
+  it("should redirect to /onboarding when onboarding_completed cookie is 'false'", async () => {
+    setupAuthenticatedUser();
+    const request = createRequest("/dashboard", { onboarding_completed: "false" });
+    const response = await middleware(request);
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+
+  it("should redirect to /onboarding when onboarding_completed cookie is '1'", async () => {
+    setupAuthenticatedUser();
+    const request = createRequest("/dashboard", { onboarding_completed: "1" });
+    const response = await middleware(request);
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+
+  it("should redirect to /onboarding when onboarding_completed cookie is 'yes'", async () => {
+    setupAuthenticatedUser();
+    const request = createRequest("/dashboard", { onboarding_completed: "yes" });
+    const response = await middleware(request);
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+
   it("should not call supabase.from() to verify DB query is completely removed", async () => {
     setupAuthenticatedUser();
 
