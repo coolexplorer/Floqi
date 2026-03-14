@@ -1,3 +1,9 @@
+## [0.5.1](https://github.com/coolexplorer/Floqi/compare/v0.5.0...v0.5.1) (2026-03-14)
+
+### Bug Fixes
+
+* call IncrementExecutionCount after execution to update usage_tracking ([#22](https://github.com/coolexplorer/Floqi/issues/22)) ([51eb275](https://github.com/coolexplorer/Floqi/commit/51eb275e1762975083c50855e7bf66ef8526c56e))
+
 ## [0.5.0](https://github.com/coolexplorer/Floqi/compare/v0.4.0...v0.5.0) (2026-03-13)
 
 ### Features
