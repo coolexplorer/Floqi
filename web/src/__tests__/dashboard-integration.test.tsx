@@ -5,14 +5,15 @@
  * 1. RecentExecutions — 최근 실행 테이블 (필터링 포함)
  * 2. UpcomingRuns — 예정된 실행 목록
  * 3. AIInsightCard — AI 인사이트 카드
- * 4. Dashboard Page — 통합 페이지 (모든 섹션 렌더링)
+ * 4. Dashboard Page — 통합 페이지 (Server Component pattern)
  */
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RecentExecutions } from '@/components/dashboard/RecentExecutions'
 import { UpcomingRuns } from '@/components/dashboard/UpcomingRuns'
 import { AIInsightCard } from '@/components/dashboard/AIInsightCard'
+import DashboardPage from '@/app/(dashboard)/dashboard/page'
 
 // ─── Mock recharts (SVG doesn't work in jsdom) ──────────────────────────────
 
@@ -47,6 +48,18 @@ vi.mock('recharts', () => {
     LabelList: () => null,
   }
 })
+
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+}))
+
+vi.mock('next/headers', () => ({
+  headers: vi.fn(() =>
+    Promise.resolve({
+      get: vi.fn(() => null),
+    })
+  ),
+}))
 
 // ─── Fixture Data ────────────────────────────────────────────────────────────
 
@@ -254,97 +267,84 @@ describe('AIInsightCard', () => {
 
 // ─── Dashboard Page Integration Tests ────────────────────────────────────────
 
-const mockPush = vi.fn()
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
-}))
+const BASE_URL = 'http://localhost:3000'
 
-const mockGetUser = vi.fn()
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    auth: { getUser: mockGetUser },
-  }),
-}))
+const mockFetchResponses: Record<string, unknown> = {
+  [`${BASE_URL}/api/dashboard/stats`]: {
+    activeAutomations: 3,
+    totalExecutions: 45,
+    successRate: 92,
+    totalTokens: 52000,
+    estimatedCost: 1.56,
+    avgDurationMs: 11000,
+    trends: {
+      executionsDelta: 7,
+      successRateDelta: 2.1,
+      tokensDelta: 8000,
+      costDelta: 0.24,
+    },
+  },
+  [`${BASE_URL}/api/dashboard/charts?days=30`]: {
+    executionTrend: [
+      { date: '2026-03-12', success: 5, error: 1, total: 6 },
+      { date: '2026-03-13', success: 8, error: 0, total: 8 },
+    ],
+    tokenTrend: [
+      { date: '2026-03-12', haikuTokens: 5000, sonnetTokens: 2000, estimatedCost: 0.05 },
+      { date: '2026-03-13', haikuTokens: 8000, sonnetTokens: 3000, estimatedCost: 0.08 },
+    ],
+  },
+  [`${BASE_URL}/api/dashboard/automations-performance`]: {
+    automations: [
+      {
+        id: 'a1',
+        name: 'Morning Briefing',
+        templateType: 'morning_briefing',
+        successRate: 95,
+        totalExecutions: 20,
+        avgDurationMs: 5000,
+        avgTokens: 1000,
+        lastRunAt: '2026-03-13T08:00:00Z',
+        nextRunAt: '2026-03-14T08:00:00Z',
+      },
+      {
+        id: 'a2',
+        name: 'Email Triage',
+        templateType: 'email_triage',
+        successRate: 60,
+        totalExecutions: 10,
+        avgDurationMs: 4000,
+        avgTokens: 800,
+        lastRunAt: '2026-03-13T09:00:00Z',
+        nextRunAt: '2026-03-14T09:00:00Z',
+      },
+    ],
+  },
+  [`${BASE_URL}/api/dashboard/tool-usage?days=30`]: {
+    tools: [
+      { toolName: 'gmail_read', totalCalls: 30, successCalls: 28, errorCalls: 2 },
+      { toolName: 'calendar_list_events', totalCalls: 20, successCalls: 20, errorCalls: 0 },
+    ],
+    templateDistribution: [
+      { templateType: 'morning_briefing', count: 20, percentage: 50 },
+      { templateType: 'email_triage', count: 10, percentage: 25 },
+    ],
+  },
+  [`${BASE_URL}/api/dashboard/upcoming`]: {
+    upcoming: [
+      {
+        automationId: 'a1',
+        automationName: 'Morning Briefing',
+        templateType: 'morning_briefing',
+        nextRunAt: '2026-03-14T08:00:00Z',
+        scheduleCron: '0 8 * * *',
+      },
+    ],
+  },
+}
 
 describe('DashboardPage (Integration)', () => {
-  const mockFetchResponses: Record<string, unknown> = {
-    '/api/dashboard/stats': {
-      activeAutomations: 3,
-      totalExecutions: 45,
-      successRate: 92,
-      totalTokens: 52000,
-      estimatedCost: 1.56,
-      avgDurationMs: 11000,
-      trends: {
-        executionsDelta: 7,
-        successRateDelta: 2.1,
-        tokensDelta: 8000,
-        costDelta: 0.24,
-      },
-    },
-    '/api/dashboard/charts?days=30': {
-      executionTrend: [
-        { date: '2026-03-12', success: 5, error: 1, total: 6 },
-        { date: '2026-03-13', success: 8, error: 0, total: 8 },
-      ],
-      tokenTrend: [
-        { date: '2026-03-12', haikuTokens: 5000, sonnetTokens: 2000, estimatedCost: 0.05 },
-        { date: '2026-03-13', haikuTokens: 8000, sonnetTokens: 3000, estimatedCost: 0.08 },
-      ],
-    },
-    '/api/dashboard/automations-performance': {
-      automations: [
-        {
-          id: 'a1',
-          name: 'Morning Briefing',
-          templateType: 'morning_briefing',
-          successRate: 95,
-          totalExecutions: 20,
-          avgDurationMs: 5000,
-          avgTokens: 1000,
-          lastRunAt: '2026-03-13T08:00:00Z',
-          nextRunAt: '2026-03-14T08:00:00Z',
-        },
-        {
-          id: 'a2',
-          name: 'Email Triage',
-          templateType: 'email_triage',
-          successRate: 60,
-          totalExecutions: 10,
-          avgDurationMs: 4000,
-          avgTokens: 800,
-          lastRunAt: '2026-03-13T09:00:00Z',
-          nextRunAt: '2026-03-14T09:00:00Z',
-        },
-      ],
-    },
-    '/api/dashboard/tool-usage?days=30': {
-      tools: [
-        { toolName: 'gmail_read', totalCalls: 30, successCalls: 28, errorCalls: 2 },
-        { toolName: 'calendar_list_events', totalCalls: 20, successCalls: 20, errorCalls: 0 },
-      ],
-      templateDistribution: [
-        { templateType: 'morning_briefing', count: 20, percentage: 50 },
-        { templateType: 'email_triage', count: 10, percentage: 25 },
-      ],
-    },
-    '/api/dashboard/upcoming': {
-      upcoming: [
-        {
-          automationId: 'a1',
-          automationName: 'Morning Briefing',
-          templateType: 'morning_briefing',
-          nextRunAt: '2026-03-14T08:00:00Z',
-          scheduleCron: '0 8 * * *',
-        },
-      ],
-    },
-  }
-
   beforeEach(() => {
-    mockPush.mockClear()
-    mockGetUser.mockClear()
-
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
@@ -361,111 +361,58 @@ describe('DashboardPage (Integration)', () => {
     vi.unstubAllGlobals()
   })
 
-  async function importDashboardPage() {
-    const mod = await import('@/app/(dashboard)/dashboard/page')
-    return mod.default
-  }
-
-  it('redirects to /login when not authenticated', async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
-
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/login')
-    })
-  })
-
   it('renders all 6 KPI cards', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
-      expect(screen.getByTestId('stat-execution-count')).toBeInTheDocument()
-      expect(screen.getByTestId('stat-success-rate')).toBeInTheDocument()
-      expect(screen.getByTestId('stat-tokens-used')).toBeInTheDocument()
-      expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
-      expect(screen.getByTestId('stat-avg-duration')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-execution-count')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-success-rate')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-tokens-used')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-avg-duration')).toBeInTheDocument()
   })
 
   it('renders chart sections', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('execution-trend-chart')).toBeInTheDocument()
-      expect(screen.getByTestId('token-usage-chart')).toBeInTheDocument()
-      expect(screen.getByTestId('automation-performance-chart')).toBeInTheDocument()
-      expect(screen.getByTestId('template-distribution-chart')).toBeInTheDocument()
-      expect(screen.getByTestId('tool-usage-chart')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('execution-trend-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('token-usage-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('automation-performance-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('template-distribution-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-usage-chart')).toBeInTheDocument()
   })
 
   it('renders recent executions section', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('recent-executions')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('recent-executions')).toBeInTheDocument()
   })
 
   it('renders upcoming runs section', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('upcoming-runs')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('upcoming-runs')).toBeInTheDocument()
   })
 
   it('renders AI insight section', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('ai-insight-card')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('ai-insight-card')).toBeInTheDocument()
   })
 
-  it('shows loading state initially', async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+  it('shows zero-state KPI values when API returns null', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) })))
 
-    const DashboardPage = await importDashboardPage()
-    render(<DashboardPage />)
+    const jsx = await DashboardPage()
+    render(jsx)
 
-    // Spinner has role="status"
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // KPI cards render with fallback zero values
+    expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
   })
 })

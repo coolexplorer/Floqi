@@ -1,7 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { headers } from "next/headers";
 import {
   Activity,
   Zap,
@@ -20,8 +17,6 @@ import { RecentExecutions } from "@/components/dashboard/RecentExecutions";
 import type { ExecutionLogEntry } from "@/components/dashboard/RecentExecutions";
 import { UpcomingRuns } from "@/components/dashboard/UpcomingRuns";
 import { AIInsightCard } from "@/components/dashboard/AIInsightCard";
-import { Spinner } from "@/components/ui/Spinner";
-import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,14 +65,6 @@ interface UpcomingEntry {
   scheduleCron: string;
 }
 
-interface DashboardData {
-  stats: DashboardStats | null;
-  charts: ChartData | null;
-  perf: { automations: AutomationPerfEntry[] } | null;
-  tools: ToolUsageData | null;
-  upcoming: { upcoming: UpcomingEntry[] } | null;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const trendDirection = (delta: number): "up" | "down" | "neutral" =>
@@ -88,9 +75,9 @@ const formatTrend = (delta: number, suffix: string = "") => {
   return (delta > 0 ? "+" : "") + delta + suffix;
 };
 
-async function safeFetch<T>(url: string): Promise<T | null> {
+async function safeFetch<T>(url: string, opts?: RequestInit): Promise<T | null> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, opts);
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -100,58 +87,25 @@ async function safeFetch<T>(url: string): Promise<T | null> {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const [data, setData] = useState<DashboardData>({
-    stats: null,
-    charts: null,
-    perf: null,
-    tools: null,
-    upcoming: null,
-  });
-  const [loading, setLoading] = useState(true);
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  useEffect(() => {
-    async function loadDashboard() {
-      const supabase = createClient();
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+export default async function DashboardPage() {
+  const headersList = await headers();
+  const cookieHeader = headersList.get("cookie") ?? "";
+  const opts: RequestInit = {
+    headers: { cookie: cookieHeader },
+    cache: "no-store",
+  };
 
-      if (!user || error) {
-        router.push("/login");
-        return;
-      }
+  const [stats, charts, perf, tools, upcoming] = await Promise.all([
+    safeFetch<DashboardStats>(`${BASE_URL}/api/dashboard/stats`, opts),
+    safeFetch<ChartData>(`${BASE_URL}/api/dashboard/charts?days=30`, opts),
+    safeFetch<{ automations: AutomationPerfEntry[] }>(`${BASE_URL}/api/dashboard/automations-performance`, opts),
+    safeFetch<ToolUsageData>(`${BASE_URL}/api/dashboard/tool-usage?days=30`, opts),
+    safeFetch<{ upcoming: UpcomingEntry[] }>(`${BASE_URL}/api/dashboard/upcoming`, opts),
+  ]);
 
-      const [stats, charts, perf, tools, upcoming] = await Promise.all([
-        safeFetch<DashboardStats>("/api/dashboard/stats"),
-        safeFetch<ChartData>("/api/dashboard/charts?days=30"),
-        safeFetch<{ automations: AutomationPerfEntry[] }>("/api/dashboard/automations-performance"),
-        safeFetch<ToolUsageData>("/api/dashboard/tool-usage?days=30"),
-        safeFetch<{ upcoming: UpcomingEntry[] }>("/api/dashboard/upcoming"),
-      ]);
-
-      setData({ stats, charts, perf, tools, upcoming });
-      setLoading(false);
-    }
-
-    loadDashboard();
-  }, [router]);
-
-  // ─── Loading state ────────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner size="lg" label="Loading dashboard" />
-      </div>
-    );
-  }
-
-  const { stats, charts, perf, tools, upcoming } = data;
-
-  // Build recent executions from perf data + charts
+  // Build recent executions from perf data
   const recentExecutions: ExecutionLogEntry[] =
     perf?.automations
       .filter((a) => a.lastRunAt)
