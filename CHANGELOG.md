@@ -1,3 +1,9 @@
+## [0.5.3](https://github.com/coolexplorer/Floqi/compare/v0.5.2...v0.5.3) (2026-03-14)
+
+### Refactoring
+
+* phase 2 — edge case tests + logs detail RSC + data layer extraction ([#24](https://github.com/coolexplorer/Floqi/issues/24)) ([f6fb7aa](https://github.com/coolexplorer/Floqi/commit/f6fb7aab6679480ce16d71a7ff600714f9d0fec8))
+
 ## [0.5.2](https://github.com/coolexplorer/Floqi/compare/v0.5.1...v0.5.2) (2026-03-14)
 
 ### Refactoring
