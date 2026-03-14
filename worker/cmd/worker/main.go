@@ -145,7 +145,17 @@ func main() {
 			return nil, fmt.Errorf("create user registry: %w", registryErr)
 		}
 
-		return agent.ExecuteAutomation(ctx, agentClient, userRegistry, autoCfg.Prompt)
+		result, err := agent.ExecuteAutomation(ctx, agentClient, userRegistry, autoCfg.Prompt)
+		if err != nil {
+			return nil, err
+		}
+
+		tokensUsed := int(result.InputTokens + result.OutputTokens)
+		if err := dbStore.IncrementExecutionCount(ctx, autoCfg.UserID, tokensUsed); err != nil {
+			log.Warn().Err(err).Str("user_id", autoCfg.UserID).Msg("[worker] warning: failed to increment execution count")
+		}
+
+		return result, nil
 	}
 
 	// 8. Create AutomationQueue
