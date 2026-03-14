@@ -63,13 +63,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && (pathname.startsWith("/dashboard") || pathname === "/onboarding")) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_completed')
-      .eq('id', user.id)
-      .single();
-
-    const onboardingCompleted = profile?.onboarding_completed ?? false;
+    const onboardingCompleted = request.cookies.get('onboarding_completed')?.value === 'true';
 
     if (pathname.startsWith("/dashboard") && !onboardingCompleted) {
       return NextResponse.redirect(new URL("/onboarding", request.url));

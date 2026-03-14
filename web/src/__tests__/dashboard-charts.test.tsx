@@ -1,24 +1,24 @@
 /**
  * Dashboard Charts Tests — TC-6010, TC-6011 (PM-16: Dashboard Advanced Stats)
  *
- * Updated for Phase 3: fetch-based API route data fetching + Recharts components
+ * Updated for RSC: async Server Component pattern
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import DashboardPage from "@/app/(dashboard)/dashboard/page";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  redirect: vi.fn(),
 }));
 
-const mockGetUser = vi.fn();
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    auth: { getUser: mockGetUser },
-  }),
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() =>
+    Promise.resolve({
+      get: vi.fn(() => null),
+    })
+  ),
 }));
 
 // Mock recharts to avoid canvas issues in test
@@ -43,6 +43,8 @@ vi.mock("recharts", () => ({
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+const BASE_URL = "http://localhost:3000";
 
 const statsResponse = {
   activeAutomations: 2,
@@ -128,32 +130,21 @@ const upcomingResponse = {
 // ─── Setup helper ─────────────────────────────────────────────────────────────
 
 function setupDashboard() {
-  mockGetUser.mockResolvedValue({
-    data: { user: { id: "user-abc" } },
-    error: null,
-  });
-
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) => {
       const routes: Record<string, unknown> = {
-        "/api/dashboard/stats": statsResponse,
-        "/api/dashboard/charts?days=30": chartsResponse,
-        "/api/dashboard/automations-performance": perfResponse,
-        "/api/dashboard/tool-usage?days=30": toolsResponse,
-        "/api/dashboard/upcoming": upcomingResponse,
+        [`${BASE_URL}/api/dashboard/stats`]: statsResponse,
+        [`${BASE_URL}/api/dashboard/charts?days=30`]: chartsResponse,
+        [`${BASE_URL}/api/dashboard/automations-performance`]: perfResponse,
+        [`${BASE_URL}/api/dashboard/tool-usage?days=30`]: toolsResponse,
+        [`${BASE_URL}/api/dashboard/upcoming`]: upcomingResponse,
       };
       const body = routes[url];
       if (body) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(body),
-        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
       }
-      return Promise.resolve({
-        ok: false,
-        json: () => Promise.resolve({}),
-      });
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
     })
   );
 }
@@ -171,38 +162,32 @@ describe("TC-6010: Dashboard 차트 표시", () => {
   });
 
   it("실행 추이 차트 영역이 렌더링된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("execution-trend-chart")).toBeInTheDocument();
-    });
+    expect(screen.getByTestId("execution-trend-chart")).toBeInTheDocument();
   });
 
   it("토큰 사용량 차트 영역이 렌더링된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("token-usage-chart")).toBeInTheDocument();
-    });
+    expect(screen.getByTestId("token-usage-chart")).toBeInTheDocument();
   });
 
   it("실행 추이 차트에 'Execution Trend' 제목이 표시된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/execution trend/i)
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText(/execution trend/i)).toBeInTheDocument();
   });
 
   it("토큰 사용량 차트에 'Token Usage' 제목이 표시된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const chartArea = screen.getByTestId("token-usage-chart");
-      expect(chartArea).toHaveTextContent(/token usage/i);
-    });
+    const chartArea = screen.getByTestId("token-usage-chart");
+    expect(chartArea).toHaveTextContent(/token usage/i);
   });
 });
 
@@ -219,29 +204,25 @@ describe("TC-6011: 차트 데이터 정확성 (API 응답 ↔ 차트 데이터)"
   });
 
   it("실행 추이 차트 컴포넌트가 렌더링된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const chartArea = screen.getByTestId("execution-trend-chart");
-      expect(chartArea).toBeInTheDocument();
-    });
+    const chartArea = screen.getByTestId("execution-trend-chart");
+    expect(chartArea).toBeInTheDocument();
   });
 
   it("성공률이 KPI 카드에 정확하게 표시된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    // 80.0% from stats response
-    await waitFor(() => {
-      const rateEl = screen.getByTestId("stat-success-rate");
-      expect(rateEl).toHaveTextContent(/80/);
-    });
+    const rateEl = screen.getByTestId("stat-success-rate");
+    expect(rateEl).toHaveTextContent(/80/);
   });
 
   it("자동화 퍼포먼스 차트가 렌더링된다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("automation-performance-chart")).toBeInTheDocument();
-    });
+    expect(screen.getByTestId("automation-performance-chart")).toBeInTheDocument();
   });
 });

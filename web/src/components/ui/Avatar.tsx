@@ -1,4 +1,7 @@
+'use client'
+
 import * as React from 'react'
+import Image from 'next/image'
 import { cn } from '@/lib/cn'
 
 export type AvatarSize = 'sm' | 'md' | 'lg'
@@ -55,10 +58,11 @@ export function Avatar({
         )}
       >
         {showImage ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+          <Image
             src={src}
             alt={alt}
+            width={48}
+            height={48}
             onError={() => setImgError(true)}
             className="h-full w-full object-cover"
           />

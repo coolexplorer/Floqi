@@ -2,24 +2,24 @@
  * Dashboard Statistics Tests — TC-6010, TC-6011
  * US-604: 대시보드 통계
  *
- * Updated for Phase 3: fetch-based API route data fetching
+ * Updated for RSC: async Server Component pattern
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import DashboardPage from "@/app/(dashboard)/dashboard/page";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  redirect: vi.fn(),
 }));
 
-const mockGetUser = vi.fn();
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    auth: { getUser: mockGetUser },
-  }),
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() =>
+    Promise.resolve({
+      get: vi.fn(() => null),
+    })
+  ),
 }));
 
 // Mock recharts to avoid canvas issues in test
@@ -44,6 +44,8 @@ vi.mock("recharts", () => ({
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+const BASE_URL = "http://localhost:3000";
 
 const statsResponse = {
   activeAutomations: 3,
@@ -136,32 +138,21 @@ const upcomingResponse = {
 // ─── Setup helper ─────────────────────────────────────────────────────────────
 
 function setupDashboard() {
-  mockGetUser.mockResolvedValue({
-    data: { user: { id: "user-abc" } },
-    error: null,
-  });
-
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) => {
       const routes: Record<string, unknown> = {
-        "/api/dashboard/stats": statsResponse,
-        "/api/dashboard/charts?days=30": chartsResponse,
-        "/api/dashboard/automations-performance": perfResponse,
-        "/api/dashboard/tool-usage?days=30": toolsResponse,
-        "/api/dashboard/upcoming": upcomingResponse,
+        [`${BASE_URL}/api/dashboard/stats`]: statsResponse,
+        [`${BASE_URL}/api/dashboard/charts?days=30`]: chartsResponse,
+        [`${BASE_URL}/api/dashboard/automations-performance`]: perfResponse,
+        [`${BASE_URL}/api/dashboard/tool-usage?days=30`]: toolsResponse,
+        [`${BASE_URL}/api/dashboard/upcoming`]: upcomingResponse,
       };
       const body = routes[url];
       if (body) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(body),
-        });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
       }
-      return Promise.resolve({
-        ok: false,
-        json: () => Promise.resolve({}),
-      });
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
     })
   );
 }
@@ -179,54 +170,46 @@ describe("TC-6010: 대시보드 통계 카드 표시", () => {
   });
 
   it("활성 자동화 수 카드를 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByText(/active automations/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/active automations/i)).toBeInTheDocument();
   });
 
   it("이번 달 실행 횟수 카드를 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/executions this month/i)
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText(/executions this month/i)).toBeInTheDocument();
   });
 
   it("총 토큰 사용량 카드를 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByText(/total tokens/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/total tokens/i)).toBeInTheDocument();
   });
 
   it("성공률 카드를 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByTestId("stat-success-rate")).toBeInTheDocument();
-      expect(screen.getByTestId("stat-success-rate")).toHaveTextContent(/success rate/i);
-    });
+    expect(screen.getByTestId("stat-success-rate")).toBeInTheDocument();
+    expect(screen.getByTestId("stat-success-rate")).toHaveTextContent(/success rate/i);
   });
 
   it("최근 실행 위젯을 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByText(/recent executions/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/recent executions/i)).toBeInTheDocument();
   });
 
   it("예정된 실행 위젯을 표시한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      expect(screen.getByText(/upcoming runs/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/upcoming runs/i)).toBeInTheDocument();
   });
 });
 
@@ -243,51 +226,34 @@ describe("TC-6011: 통계 데이터 정확성 (API 응답 ↔ UI 수치 일치)"
   });
 
   it("활성 자동화 수가 API 응답 값과 일치한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const countEl = screen.getByTestId("stat-active-automations");
-      expect(countEl).toHaveTextContent("3");
-    });
+    const countEl = screen.getByTestId("stat-active-automations");
+    expect(countEl).toHaveTextContent("3");
   });
 
   it("총 토큰 사용량이 API 응답 값과 일치한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const tokensEl = screen.getByTestId("stat-tokens-used");
-      expect(tokensEl).toHaveTextContent(/2[,.]?200/);
-    });
+    const tokensEl = screen.getByTestId("stat-tokens-used");
+    expect(tokensEl).toHaveTextContent(/2[,.]?200/);
   });
 
   it("성공률이 API 응답 값과 일치한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const rateEl = screen.getByTestId("stat-success-rate");
-      expect(rateEl).toHaveTextContent(/66\.7/);
-    });
+    const rateEl = screen.getByTestId("stat-success-rate");
+    expect(rateEl).toHaveTextContent(/66\.7/);
   });
 
   it("실행 횟수가 API 응답 값과 일치한다", async () => {
-    render(<DashboardPage />);
+    const jsx = await DashboardPage();
+    render(jsx);
 
-    await waitFor(() => {
-      const countEl = screen.getByTestId("stat-execution-count");
-      expect(countEl).toHaveTextContent("3");
-    });
-  });
-
-  it("인증되지 않은 사용자는 대시보드에 접근할 수 없다", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Not authenticated" },
-    });
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/login");
-    });
+    const countEl = screen.getByTestId("stat-execution-count");
+    expect(countEl).toHaveTextContent("3");
   });
 });

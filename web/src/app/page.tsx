@@ -1,9 +1,6 @@
-'use client'
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 import { TopNavBar } from "@/components/layout/TopNavBar";
 import { Card } from "@/components/ui/Card";
 import { PricingTable } from "@/components/tables/PricingTable";
@@ -20,21 +17,12 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-export default function LandingPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        router.push("/dashboard");
-      }
-    };
-    checkAuth();
-  }, [router]);
+export default async function LandingPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) redirect("/dashboard");
 
   return (
     <>
@@ -63,8 +51,6 @@ export default function LandingPage() {
                 className="inline-flex h-12 items-center rounded-lg bg-white px-8 text-base font-semibold text-blue-700 shadow-md transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-600"
               >
                 <span>Get started</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img alt="" aria-hidden="true" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" className="absolute h-0 w-0 overflow-hidden" />
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
