@@ -1,11 +1,10 @@
-import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { ToolCallsTimeline } from '@/components/timeline/ToolCallsTimeline'
 import { BackButton } from '@/components/ui/BackButton'
-import type { ExecutionLogDetail } from '@/app/api/logs/[id]/route'
+import { getLogById } from '@/lib/data/logs'
 
 const statusBadgeVariant: Record<string, BadgeVariant> = {
   success: 'success',
@@ -30,17 +29,7 @@ function formatDuration(ms: number): string {
 
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const headersList = await headers()
-  const cookieHeader = headersList.get('cookie') ?? ''
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-
-  const res = await fetch(`${baseUrl}/api/logs/${id}`, {
-    headers: { cookie: cookieHeader },
-    cache: 'no-store',
-  })
-
-  if (!res.ok) notFound()
-  const { log } = (await res.json()) as { log: ExecutionLogDetail | null }
+  const log = await getLogById(id)
   if (!log) notFound()
 
   const badgeVariant = statusBadgeVariant[log.status] ?? 'neutral'

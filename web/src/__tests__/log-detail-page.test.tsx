@@ -1,13 +1,12 @@
 /**
  * Log Detail Page Tests — RSC pattern
  * Tests:
- * - LogDetailPage renders log data fetched server-side
- * - LogDetailPage calls notFound() on non-ok response
- * - BackButton renders and triggers router.push
+ * - LogDetailPage renders log data via direct data layer call
+ * - LogDetailPage calls notFound() when log not found
+ * - BackButton renders as Link
  */
 
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import LogDetailPage from '@/app/(dashboard)/logs/[id]/page'
 import { BackButton } from '@/components/ui/BackButton'
 
@@ -19,18 +18,28 @@ vi.mock('next/navigation', () => ({
     mockNotFound()
     throw new Error('NEXT_NOT_FOUND')
   },
-  useRouter: () => ({ push: mockPush }),
 }))
 
-vi.mock('next/headers', () => ({
-  headers: vi.fn(() =>
-    Promise.resolve({
-      get: vi.fn(() => null),
-    })
+vi.mock('next/link', () => ({
+  default: ({
+    href,
+    children,
+    className,
+  }: {
+    href: string
+    children: React.ReactNode
+    className?: string
+  }) => (
+    <a href={href} className={className}>
+      {children}
+    </a>
   ),
 }))
 
-const mockPush = vi.fn()
+const mockGetLogById = vi.fn()
+vi.mock('@/lib/data/logs', () => ({
+  getLogById: (...args: unknown[]) => mockGetLogById(...args),
+}))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -64,23 +73,6 @@ const errorLogFixture = {
   tool_calls: [],
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function mockFetch(log: typeof logFixture | typeof errorLogFixture) {
-  global.fetch = vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ log }),
-  } as Response)
-}
-
-function mockFetch404() {
-  global.fetch = vi.fn().mockResolvedValue({
-    ok: false,
-    status: 404,
-    json: async () => ({ error: 'Not found' }),
-  } as Response)
-}
-
 // ─── LogDetailPage RSC tests ───────────────────────────────────────────────────
 
 describe('LogDetailPage (Server Component)', () => {
@@ -89,7 +81,7 @@ describe('LogDetailPage (Server Component)', () => {
   })
 
   it('renders automation name and status badge', async () => {
-    mockFetch(logFixture)
+    mockGetLogById.mockResolvedValue(logFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-abc' }) }))
 
     expect(screen.getByText('Morning Briefing')).toBeInTheDocument()
@@ -97,7 +89,7 @@ describe('LogDetailPage (Server Component)', () => {
   })
 
   it('renders duration and tokens', async () => {
-    mockFetch(logFixture)
+    mockGetLogById.mockResolvedValue(logFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-abc' }) }))
 
     expect(screen.getByText('3.2s')).toBeInTheDocument()
@@ -105,7 +97,7 @@ describe('LogDetailPage (Server Component)', () => {
   })
 
   it('renders tool calls timeline', async () => {
-    mockFetch(logFixture)
+    mockGetLogById.mockResolvedValue(logFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-abc' }) }))
 
     expect(screen.getByText('Tool Calls')).toBeInTheDocument()
@@ -113,21 +105,21 @@ describe('LogDetailPage (Server Component)', () => {
   })
 
   it('renders error message for error status', async () => {
-    mockFetch(errorLogFixture)
+    mockGetLogById.mockResolvedValue(errorLogFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-err' }) }))
 
     expect(screen.getByText('Token expired')).toBeInTheDocument()
   })
 
   it('renders "No tool calls recorded" when tool_calls is empty', async () => {
-    mockFetch(errorLogFixture)
+    mockGetLogById.mockResolvedValue(errorLogFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-err' }) }))
 
     expect(screen.getByText(/no tool calls recorded/i)).toBeInTheDocument()
   })
 
-  it('calls notFound() when fetch returns non-ok', async () => {
-    mockFetch404()
+  it('calls notFound() when getLogById returns null', async () => {
+    mockGetLogById.mockResolvedValue(null)
 
     await expect(
       LogDetailPage({ params: Promise.resolve({ id: 'missing' }) })
@@ -136,29 +128,36 @@ describe('LogDetailPage (Server Component)', () => {
     expect(mockNotFound).toHaveBeenCalledOnce()
   })
 
-  it('renders BackButton linking to /logs', async () => {
-    mockFetch(logFixture)
+  it('passes correct id to getLogById', async () => {
+    mockGetLogById.mockResolvedValue(logFixture)
     render(await LogDetailPage({ params: Promise.resolve({ id: 'log-abc' }) }))
 
-    expect(screen.getByRole('button', { name: /back to logs/i })).toBeInTheDocument()
+    expect(mockGetLogById).toHaveBeenCalledWith('log-abc')
+  })
+
+  it('renders BackButton linking to /logs', async () => {
+    mockGetLogById.mockResolvedValue(logFixture)
+    render(await LogDetailPage({ params: Promise.resolve({ id: 'log-abc' }) }))
+
+    const backLink = screen.getByRole('link', { name: /back to logs/i })
+    expect(backLink).toBeInTheDocument()
+    expect(backLink).toHaveAttribute('href', '/logs')
   })
 })
 
 // ─── BackButton tests ─────────────────────────────────────────────────────────
 
 describe('BackButton', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('renders as a link with correct href and label', () => {
+    render(<BackButton href="/logs" label="Back to Logs" />)
+    const link = screen.getByRole('link', { name: /back to logs/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/logs')
   })
 
-  it('renders with label', () => {
-    render(<BackButton href="/logs" label="Back to Logs" />)
-    expect(screen.getByRole('button', { name: /back to logs/i })).toBeInTheDocument()
-  })
-
-  it('calls router.push with href on click', async () => {
-    render(<BackButton href="/logs" label="Back to Logs" />)
-    await userEvent.click(screen.getByRole('button', { name: /back to logs/i }))
-    expect(mockPush).toHaveBeenCalledWith('/logs')
+  it('renders with custom href and label', () => {
+    render(<BackButton href="/dashboard" label="Back to Dashboard" />)
+    const link = screen.getByRole('link', { name: /back to dashboard/i })
+    expect(link).toHaveAttribute('href', '/dashboard')
   })
 })
