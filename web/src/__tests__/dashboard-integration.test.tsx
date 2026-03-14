@@ -416,3 +416,81 @@ describe('DashboardPage (Integration)', () => {
     expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
   })
 })
+
+// ─── Dashboard Page — Partial API Failure Tests ───────────────────────────────
+
+describe('DashboardPage — Partial API Failure', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('should render KPI cards as zero when only stats API fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/dashboard/stats')) {
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }
+        const body = mockFetchResponses[url] ?? {}
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
+      })
+    )
+
+    const jsx = await DashboardPage()
+    render(jsx)
+
+    // KPI cards present with zero/fallback values
+    expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
+    // AI insights section hidden when stats is null
+    expect(screen.queryByTestId('ai-insight-card')).not.toBeInTheDocument()
+    // Charts still render (charts API succeeded)
+    expect(screen.getByTestId('execution-trend-chart')).toBeInTheDocument()
+  })
+
+  it('should render empty charts when only charts API fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/dashboard/charts')) {
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }
+        const body = mockFetchResponses[url] ?? {}
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
+      })
+    )
+
+    const jsx = await DashboardPage()
+    render(jsx)
+
+    // Stats KPI cards render with data
+    expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-estimated-cost')).toBeInTheDocument()
+    // Chart components still render (with empty data fallback)
+    expect(screen.getByTestId('execution-trend-chart')).toBeInTheDocument()
+    expect(screen.getByTestId('token-usage-chart')).toBeInTheDocument()
+  })
+
+  it('should render when perf API fails but stats succeeds', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/dashboard/automations-performance')) {
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
+        }
+        const body = mockFetchResponses[url] ?? {}
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
+      })
+    )
+
+    const jsx = await DashboardPage()
+    render(jsx)
+
+    // Page renders without crashing
+    expect(screen.getByTestId('stat-active-automations')).toBeInTheDocument()
+    // AutomationPerformance renders with empty data
+    expect(screen.getByTestId('automation-performance-chart')).toBeInTheDocument()
+    // RecentExecutions renders with empty state (built from perf data)
+    expect(screen.getByTestId('recent-executions')).toBeInTheDocument()
+  })
+})

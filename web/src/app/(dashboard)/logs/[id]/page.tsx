@@ -1,11 +1,10 @@
-'use client'
-
-import * as React from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, AlertCircle } from 'lucide-react'
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
+import { AlertCircle } from 'lucide-react'
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { ToolCallsTimeline } from '@/components/timeline/ToolCallsTimeline'
+import { BackButton } from '@/components/ui/BackButton'
 import type { ExecutionLogDetail } from '@/app/api/logs/[id]/route'
 
 const statusBadgeVariant: Record<string, BadgeVariant> = {
@@ -29,69 +28,27 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export default function LogDetailPage() {
-  const router = useRouter()
-  const params = useParams()
-  const id = params.id as string
+export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const headersList = await headers()
+  const cookieHeader = headersList.get('cookie') ?? ''
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-  const [log, setLog] = React.useState<ExecutionLogDetail | null>(null)
-  const [loading, setLoading] = React.useState(true)
-  const [notFound, setNotFound] = React.useState(false)
+  const res = await fetch(`${baseUrl}/api/logs/${id}`, {
+    headers: { cookie: cookieHeader },
+    cache: 'no-store',
+  })
 
-  React.useEffect(() => {
-    fetch(`/api/logs/${id}`)
-      .then((res) => {
-        if (!res.ok) {
-          setNotFound(true)
-          setLoading(false)
-          return null
-        }
-        return res.json()
-      })
-      .then((data) => {
-        if (data?.log) setLog(data.log)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [id])
-
-  if (loading) {
-    return (
-      <div role="status" aria-live="polite" className="flex items-center justify-center py-24 text-sm text-slate-500">
-        Loading...
-      </div>
-    )
-  }
-
-  if (notFound || !log) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <button
-          type="button"
-          onClick={() => router.push('/logs')}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Logs
-        </button>
-        <p className="text-sm text-slate-500">Log not found.</p>
-      </div>
-    )
-  }
+  if (!res.ok) notFound()
+  const { log } = (await res.json()) as { log: ExecutionLogDetail | null }
+  if (!log) notFound()
 
   const badgeVariant = statusBadgeVariant[log.status] ?? 'neutral'
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Back link */}
-      <button
-        type="button"
-        onClick={() => router.push('/logs')}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to Logs
-      </button>
+      <BackButton href="/logs" label="Back to Logs" />
 
       {/* Log header card */}
       <Card>
