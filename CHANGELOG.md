@@ -1,3 +1,9 @@
+## [0.5.2](https://github.com/coolexplorer/Floqi/compare/v0.5.1...v0.5.2) (2026-03-14)
+
+### Refactoring
+
+* Server Component conversion + Frontend Excellence improvements ([#23](https://github.com/coolexplorer/Floqi/issues/23)) ([1a0ddd4](https://github.com/coolexplorer/Floqi/commit/1a0ddd4ba27c4e3aa2dd36382e789cbe3f55ae17))
+
 ## [0.5.1](https://github.com/coolexplorer/Floqi/compare/v0.5.0...v0.5.1) (2026-03-14)
 
 ### Bug Fixes
